@@ -72,7 +72,7 @@ async function fetchOrderItems(url) {
 }
 
 async function main() {
-  const orders = JSON.parse(await readFile('orders.json', 'utf-8'));
+  const orders = JSON.parse(await readFile(process.env.ORDERS_OUTPUT_FILE ?? 'orders.json', 'utf-8'));
 
   const results = [];
 
@@ -104,7 +104,7 @@ async function main() {
     }
   }
 
-  const outputPath = 'orders-details.json';
+  const outputPath = process.env.ORDERS_DETAILS_FILE ?? 'orders-details.json';
   await writeFile(outputPath, JSON.stringify(results, null, 2), 'utf-8');
   console.log(`\nWrote ${results.length} orders to ${outputPath}`);
 }

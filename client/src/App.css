@@ -1,0 +1,243 @@
+:root {
+  --bg: #1a1a1a;
+  --surface: #242424;
+  --border: #333;
+  --text: #e8e8e8;
+  --muted: #888;
+  --accent: #2d6a9f;
+  --accent-light: #3a82c4;
+  --price-color: #80cbc4;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.app { min-height: 100vh; display: flex; flex-direction: column; }
+
+/* ── Header ─────────────────────────────────────── */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.app-header h1 { font-size: 17px; font-weight: 600; }
+
+.header-actions { display: flex; align-items: center; gap: 14px; }
+
+.total { font-size: 15px; font-weight: 700; color: var(--price-color); }
+
+.btn-excel {
+  background: var(--accent);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.btn-excel:hover { background: var(--accent-light); }
+
+/* ── Tabs ────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  padding: 0 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.tabs button {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 10px 16px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.15s;
+}
+.tabs button:hover { color: var(--text); }
+.tabs button.active { color: var(--accent-light); border-bottom-color: var(--accent-light); }
+
+.badge {
+  background: var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+/* ── Main ────────────────────────────────────────── */
+main { flex: 1; padding: 16px 24px; overflow: auto; }
+
+.status { color: var(--muted); padding: 32px 0; }
+.status.error { color: #f44336; }
+
+code {
+  background: var(--border);
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+/* ── Orders Table ────────────────────────────────── */
+.table-wrapper { overflow-x: auto; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+thead th {
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  padding: 9px 12px;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 2px solid var(--border);
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+tbody tr:hover { background: var(--surface); }
+tbody td { padding: 8px 12px; white-space: nowrap; }
+
+tbody td a { color: var(--accent-light); text-decoration: none; }
+tbody td a:hover { text-decoration: underline; }
+
+/* ── Order Details ───────────────────────────────── */
+.details-list { display: flex; flex-direction: column; gap: 14px; }
+
+.order-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.order-card-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  background: #2a2a2a;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.order-number { font-weight: 600; min-width: 110px; }
+.order-date { color: var(--muted); font-size: 13px; }
+.order-price { font-weight: 700; color: var(--price-color); margin-left: auto; }
+
+.status-badge {
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  background: var(--border);
+  color: var(--muted);
+}
+.status-จัดส่งแล้ว { background: #1b3a1e; color: #81c784; }
+.status-กำลังเตรียมสินค้า { background: #1a2e3a; color: #64b5f6; }
+.status-ออร์เดอร์ยกเลิก { background: #3a1b1b; color: #e57373; }
+
+.items-table { width: 100%; font-size: 13px; }
+.items-table th {
+  padding: 7px 12px;
+  text-align: left;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: none;
+  position: static;
+  border-bottom: 1px solid var(--border);
+}
+.items-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.items-table tr:last-child td { border-bottom: none; }
+
+.no-items { padding: 12px 16px; color: var(--muted); font-size: 13px; font-style: italic; }
+
+/* ── DataTable Controls ──────────────────────────── */
+.datatable { display: flex; flex-direction: column; gap: 10px; }
+
+.dt-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.dt-controls-left { display: flex; align-items: center; gap: 12px; }
+.dt-controls-right { display: flex; align-items: center; gap: 12px; }
+
+.dt-search {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 6px 10px;
+  font-size: 13px;
+  width: 220px;
+  outline: none;
+}
+.dt-search:focus { border-color: var(--accent-light); }
+
+.dt-count { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+.dt-page-size {
+  color: var(--muted);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+}
+.dt-page-size select {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 3px 6px;
+  font-size: 13px;
+  margin-left: 4px;
+  outline: none;
+}
+
+.dt-pagination { display: flex; align-items: center; gap: 4px; }
+.dt-pagination span { font-size: 13px; color: var(--muted); padding: 0 6px; white-space: nowrap; }
+.dt-pagination button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 4px 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.dt-pagination button:hover:not(:disabled) { background: var(--border); }
+.dt-pagination button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+thead th { cursor: pointer; user-select: none; }
+thead th.sorted { color: var(--accent-light); }
+thead th:hover { color: var(--text); }
+
+.dt-empty { text-align: center; color: var(--muted); padding: 24px !important; }
