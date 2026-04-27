@@ -1,0 +1,16 @@
+{
+  "name": "phoenix-history",
+  "version": "1.0.0",
+  "description": "Extract order history from Phoenix Next",
+  "type": "module",
+  "scripts": {
+    "orders": "node --env-file=.env src/fetch-orders.js",
+    "order-details": "node --env-file=.env src/fetch-order-details.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.0",
+    "cheerio": "^1.0.0"
+  },
+  "author": "GallowBell",
+  "license": "ISC"
+}
