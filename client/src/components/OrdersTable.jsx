@@ -3,6 +3,16 @@ import DataTableControls from './DataTableControls.jsx';
 
 const HIDDEN_COLS = new Set(['ที่อยู่จัดส่ง', 'สั่งซื้ออีกครั้ง']);
 
+/** Only allow http/https URLs to prevent javascript: XSS */
+function safeHref(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function OrdersTable({ orders }) {
   const dt = useDataTable(orders, { defaultPageSize: 20 });
 
@@ -49,8 +59,8 @@ export default function OrdersTable({ orders }) {
               <tr key={i}>
                 {keys.map((k) => (
                   <td key={k}>
-                    {k === 'ดูรายละเอียด' && order[k] ? (
-                      <a href={order[k]} target="_blank" rel="noreferrer">View ↗</a>
+                    {k === 'ดูรายละเอียด' && safeHref(order[k]) ? (
+                      <a href={safeHref(order[k])} target="_blank" rel="noreferrer">View ↗</a>
                     ) : (
                       order[k]
                     )}

@@ -31,10 +31,11 @@ app.get('/api/excel/download', async (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="orders.xlsx"');
     res.send(Buffer.from(buffer));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Excel export error:', err);
+    res.status(500).json({ error: 'Failed to generate Excel export' });
   }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '127.0.0.1', () => {
   console.log(`API server: http://localhost:${PORT}`);
 });
