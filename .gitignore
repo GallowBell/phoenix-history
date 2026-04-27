@@ -1,3 +1,4 @@
 .env
 orders.json
+orders-details.json
 node_modules/
