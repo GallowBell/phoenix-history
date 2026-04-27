@@ -1,4 +1,5 @@
 .env
 orders.json
 orders-details.json
+*.xlsx
 node_modules/

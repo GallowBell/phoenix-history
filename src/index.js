@@ -2,6 +2,7 @@ const COMMANDS = {
   orders: () => import('./fetch-orders.js'),
   'order-details': () => import('./fetch-order-details.js'),
   sum: () => import('./sum-orders.js'),
+  excel: () => import('./export-excel.js'),
 };
 
 const command = process.argv[2];

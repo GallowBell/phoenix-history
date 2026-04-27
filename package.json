@@ -8,11 +8,13 @@
     "start": "node --env-file=.env src/index.js",
     "orders": "node --env-file=.env src/index.js orders",
     "order-details": "node --env-file=.env src/index.js order-details",
-    "sum": "node --env-file=.env src/index.js sum"
+    "sum": "node --env-file=.env src/index.js sum",
+    "excel": "node --env-file=.env src/index.js excel"
   },
   "dependencies": {
     "axios": "^1.7.0",
-    "cheerio": "^1.0.0"
+    "cheerio": "^1.0.0",
+    "exceljs": "^4.4.0"
   },
   "author": "GallowBell",
   "license": "ISC"
