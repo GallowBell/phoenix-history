@@ -109,7 +109,6 @@ async function main() {
   console.log(`\nWrote ${results.length} orders to ${outputPath}`);
 }
 
-main().catch((err) => {
-  console.error('Fatal:', err.message);
-  process.exit(1);
-});
+export async function run() {
+  await main();
+}

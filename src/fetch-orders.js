@@ -126,7 +126,6 @@ async function fetchOrders() {
   }
 }
 
-fetchOrders().catch((err) => {
-  console.error('Failed to fetch orders:', err.message);
-  process.exit(1);
-});
+export async function run() {
+  await fetchOrders();
+}
