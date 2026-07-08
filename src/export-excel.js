@@ -15,7 +15,7 @@ const COLUMN_WIDTHS = {
   'สั่งซื้ออีกครั้ง': 20,
 };
 
-function parsePrice(raw) {
+export function parsePrice(raw) {
   if (!raw || raw === '-') return null;
   const value = parseFloat(raw.replace(/[฿,]/g, ''));
   return isNaN(value) ? null : value;

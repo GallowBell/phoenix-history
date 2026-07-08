@@ -36,6 +36,11 @@ app.get('/api/excel/download', async (req, res) => {
   }
 });
 
-app.listen(PORT, '127.0.0.1', () => {
-  console.log(`API server: http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, '127.0.0.1', () => {
+    console.log(`API server: http://localhost:${PORT}`);
+  });
+}
+
+export default app;
+

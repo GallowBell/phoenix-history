@@ -23,7 +23,7 @@ const HEADERS = {
 };
 
 /** Find the order detail URL from any key in the order object */
-function getDetailUrl(order) {
+export function getDetailUrl(order) {
   for (const val of Object.values(order)) {
     if (typeof val === 'string' && val.includes('/sales/order/view/')) {
       return val;
@@ -33,7 +33,7 @@ function getDetailUrl(order) {
 }
 
 /** Extract order_id number from the detail URL */
-function extractOrderId(url) {
+export function extractOrderId(url) {
   const match = url.match(/order_id\/(\d+)/);
   return match ? match[1] : null;
 }

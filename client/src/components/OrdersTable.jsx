@@ -4,7 +4,7 @@ import DataTableControls from './DataTableControls.jsx';
 const HIDDEN_COLS = new Set(['ที่อยู่จัดส่ง', 'สั่งซื้ออีกครั้ง']);
 
 /** Only allow http/https URLs to prevent javascript: XSS */
-function safeHref(url) {
+export function safeHref(url) {
   try {
     const parsed = new URL(url);
     return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? url : null;

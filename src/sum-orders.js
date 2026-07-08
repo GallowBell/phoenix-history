@@ -1,6 +1,12 @@
 import { readFile } from 'fs/promises';
 import { resolve } from 'path';
 
+export function parsePrice(raw) {
+  if (!raw || raw === '-') return null;
+  const value = parseFloat(raw.replace(/[฿,]/g, ''));
+  return isNaN(value) ? null : value;
+}
+
 export async function run() {
   const filePath = process.env.ORDERS_OUTPUT_FILE ?? 'orders.json';
   const absPath = resolve(filePath);
@@ -17,10 +23,8 @@ export async function run() {
 
   for (const order of orders) {
     if (order[STATUS_KEY] === CANCELLED_STATUS) { cancelled++; continue; }
-    const raw = order[KEY];
-    if (!raw || raw === '-') { skipped++; continue; }
-    const value = parseFloat(raw.replace(/[฿,]/g, ''));
-    if (isNaN(value)) { skipped++; continue; }
+    const value = parsePrice(order[KEY]);
+    if (value === null) { skipped++; continue; }
     total += value;
   }
 

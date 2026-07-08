@@ -5,7 +5,7 @@ import config from './orders-config.js';
 
 const ORDER_NUMBER_KEY = 'หมายเลขคำสั่งซื้อ';
 
-function buildUrl(page) {
+export function buildUrl(page) {
   return page > 1 ? `${config.url}&p=${page}` : config.url;
 }
 

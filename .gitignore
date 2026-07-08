@@ -4,3 +4,4 @@ orders-details.json
 *.xlsx
 node_modules/
 dist/
+coverage/
