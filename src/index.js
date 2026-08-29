@@ -3,12 +3,13 @@ const COMMANDS = {
   'order-details': () => import('./fetch-order-details.js'),
   sum: () => import('./sum-orders.js'),
   excel: () => import('./export-excel.js'),
+  find: () => import('./find-orders.js'),
 };
 
 const command = process.argv[2];
 
 if (!command || !COMMANDS[command]) {
-  console.error(`Usage: node src/index.js <command>`);
+  console.error(`Usage: node src/index.js <command> [args]`);
   console.error(`Commands: ${Object.keys(COMMANDS).join(', ')}`);
   process.exit(1);
 }

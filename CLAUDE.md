@@ -17,6 +17,7 @@ npm run orders            # scrape order list      -> orders.json
 npm run order-details     # scrape items per order -> orders-details.json (needs orders.json)
 npm run sum               # print total spend
 npm run excel             # write orders.xlsx
+npm run find [key] <value># search scraped data offline (default key: name)
 npm test                  # vitest run
 npm run test:watch
 npm run test:coverage     # v8 coverage over src/**, client/src/**, server.js
@@ -53,7 +54,9 @@ Config comes from `.env`, loaded by Node's native `--env-file` flag (Node 20.6+,
 
 These are hardcoded as string literals in `src/sum-orders.js`, `src/export-excel.js`, `client/src/App.jsx`, `client/src/components/OrdersTable.jsx`, and `OrderDetailsTable.jsx`. If the site renames a column, all of them must change together. Prices are always strings with `฿` and thousands separators — parse before doing arithmetic.
 
-**Pipeline.** `src/index.js` is a dispatcher mapping a command name to a dynamic import; each module exports `run()`. To add a command, add an entry to `COMMANDS` and export `run()` from the new module.
+**Pipeline.** `src/index.js` is a dispatcher mapping a command name to a dynamic import; each module exports `run()`. To add a command, add an entry to `COMMANDS` and export `run()` from the new module. Commands read their own extra arguments off `process.argv` — the dispatcher forwards nothing (`find` uses `process.argv.slice(3)`, `order-details` checks for `--force`).
+
+`find-orders.js` is read-only and offline: it searches `ORDERS_DETAILS_FILE` and never imports `orders-config.js`, so it works without a cookie. Fields are declared in one `FIELDS` table marked `level: 'order'` or `level: 'item'`, which is what decides whether a match reports the whole order's items or just the matching ones; `ALIASES` maps ASCII names onto the Thai keys so they can be typed at a shell. It imports `parsePrice` from `sum-orders.js` rather than adding a fourth copy.
 
 ```
 fetch-orders  -> orders.json ------> sum-orders   (stdout)
