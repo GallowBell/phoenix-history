@@ -5,9 +5,12 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
+    "prestart": "node src/ensure-cookie.js",
     "start": "concurrently -n API,UI -c cyan,magenta \"node --env-file=.env server.js\" \"vite --config client/vite.config.js\"",
     "server": "node --env-file=.env server.js",
+    "preorders": "node src/ensure-cookie.js",
     "orders": "node --env-file=.env src/index.js orders",
+    "preorder-details": "node src/ensure-cookie.js",
     "order-details": "node --env-file=.env src/index.js order-details",
     "sum": "node --env-file=.env src/index.js sum",
     "excel": "node --env-file=.env src/index.js excel",
