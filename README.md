@@ -86,6 +86,17 @@ npm run order-details
 
 > Requires `orders.json` to exist. Run `npm run orders` first.
 
+Detail pages are fetched **4 at a time**, and orders that are already finished
+(shipped or cancelled) are reused from the previous `ORDERS_DETAILS_FILE` instead
+of being re-scraped. A first run of ~100 orders takes about a minute; a later run
+usually only re-fetches the handful of orders still in progress, plus any new ones.
+
+To ignore the cache and re-scrape every order:
+
+```bash
+npm run order-details -- --force
+```
+
 ### Print total spend
 
 Sums all `ราคาสุทธิ` values and prints the total to the terminal.
