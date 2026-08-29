@@ -22,6 +22,17 @@ const HEADERS = {
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36',
 };
 
+const ORDER_NUMBER_KEY = 'หมายเลขคำสั่งซื้อ';
+const STATUS_KEY = 'สถานะ';
+
+// Orders in these states are finished and their items can never change, so a
+// previous run's result is safe to reuse. Any other status — including one we
+// don't recognise — is re-fetched every time.
+const TERMINAL_STATUSES = new Set(['จัดส่งแล้ว', 'ออร์เดอร์ยกเลิก']);
+
+// The site saturates around 4 concurrent detail requests; 8 measured no faster.
+const CONCURRENCY = 4;
+
 /** Find the order detail URL from any key in the order object */
 export function getDetailUrl(order) {
   for (const val of Object.values(order)) {
@@ -71,42 +82,89 @@ async function fetchOrderItems(url) {
   return items;
 }
 
+/** Index the previous run's output by order number so finished orders can be reused. */
+export async function loadCache(path) {
+  try {
+    const previous = JSON.parse(await readFile(path, 'utf-8'));
+    return new Map(previous.map((o) => [o[ORDER_NUMBER_KEY], o]));
+  } catch {
+    // No previous run, or the file is unreadable — fetch everything.
+    return new Map();
+  }
+}
+
+/**
+ * Reuse a cached record only when the order is finished, its status has not
+ * changed since the cache was written, and that run actually produced items —
+ * so a failed or empty parse never gets frozen in.
+ */
+export function isCacheable(cached, order) {
+  if (!cached || cached.error) return false;
+  if (!TERMINAL_STATUSES.has(order[STATUS_KEY])) return false;
+  if (cached[STATUS_KEY] !== order[STATUS_KEY]) return false;
+  return Array.isArray(cached.items) && cached.items.length > 0;
+}
+
+/** Run `worker` over `items` with at most `limit` in flight, preserving input order. */
+export async function mapPool(items, limit, worker) {
+  const out = new Array(items.length);
+  let next = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await worker(items[i], i);
+    }
+  });
+  await Promise.all(runners);
+  return out;
+}
+
 async function main() {
-  const orders = JSON.parse(await readFile(process.env.ORDERS_OUTPUT_FILE ?? 'orders.json', 'utf-8'));
+  const force = process.argv.includes('--force');
+  const ordersPath = process.env.ORDERS_OUTPUT_FILE ?? 'orders.json';
+  const outputPath = process.env.ORDERS_DETAILS_FILE ?? 'orders-details.json';
 
-  const results = [];
+  const orders = JSON.parse(await readFile(ordersPath, 'utf-8'));
+  const cache = force ? new Map() : await loadCache(outputPath);
 
-  for (let i = 0; i < orders.length; i++) {
-    const order = orders[i];
+  let reused = 0;
+  let fetched = 0;
+  let failed = 0;
+
+  const results = await mapPool(orders, CONCURRENCY, async (order, i) => {
+    const label = `[${i + 1}/${orders.length}]`;
+    const cached = cache.get(order[ORDER_NUMBER_KEY]);
+
+    if (isCacheable(cached, order)) {
+      reused++;
+      return { ...order, orderId: cached.orderId, items: cached.items };
+    }
+
     const url = getDetailUrl(order);
-
     if (!url) {
-      console.warn(`[${i + 1}/${orders.length}] No detail URL found, skipping`);
-      results.push({ ...order, orderId: null, items: [] });
-      continue;
+      console.warn(`${label} No detail URL found, skipping`);
+      return { ...order, orderId: null, items: [] };
     }
 
     const orderId = extractOrderId(url);
-    console.log(`[${i + 1}/${orders.length}] Fetching order ${orderId}...`);
 
     try {
       const items = await fetchOrderItems(url);
-      results.push({ ...order, orderId, items });
-      console.log(`  → ${items.length} item(s)`);
+      fetched++;
+      console.log(`${label} order ${orderId} → ${items.length} item(s)`);
+      return { ...order, orderId, items };
     } catch (err) {
-      console.error(`  ✗ Failed: ${err.message}`);
-      results.push({ ...order, orderId, items: [], error: err.message });
+      failed++;
+      console.error(`${label} order ${orderId} ✗ ${err.message}`);
+      return { ...order, orderId, items: [], error: err.message };
     }
+  });
 
-    // Polite delay between requests (skip after last)
-    if (i < orders.length - 1) {
-      await new Promise((r) => setTimeout(r, 500));
-    }
-  }
-
-  const outputPath = process.env.ORDERS_DETAILS_FILE ?? 'orders-details.json';
   await writeFile(outputPath, JSON.stringify(results, null, 2), 'utf-8');
+
   console.log(`\nWrote ${results.length} orders to ${outputPath}`);
+  console.log(`Reused ${reused} cached, fetched ${fetched}${failed ? `, ${failed} failed` : ''}`);
+  if (reused > 0) console.log('Run with --force to re-fetch everything.');
 }
 
 export async function run() {

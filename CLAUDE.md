@@ -63,7 +63,9 @@ fetch-orders  -> orders.json ------> sum-orders   (stdout)
                       +-----> export-excel -------> orders.xlsx / buffer
 ```
 
-`fetch-order-details.js` re-reads `orders.json` and emits enriched copies of each row with `orderId` and an `items[]` array (`{name, sku, price, quantity, subtotal}`), so detail records are a superset of order records.
+`fetch-order-details.js` re-reads `orders.json` and emits enriched copies of each row with `orderId` and an `items[]` array (`{name, sku, price, quantity, subtotal}`), so detail records are a superset of order records. It cannot run concurrently with `fetch-orders` — it consumes that command's output file.
+
+Detail fetching runs through `mapPool(items, CONCURRENCY, worker)` at 4 in flight (measured: the site saturates there, 8 is no faster) and writes results back by index, so output order always matches `orders.json`. Before fetching, `isCacheable()` decides whether the previous `ORDERS_DETAILS_FILE` entry can be reused: only for a **terminal status** (`จัดส่งแล้ว`, `ออร์เดอร์ยกเลิก`) whose status is unchanged, with no recorded `error` and a non-empty `items[]` — so a failed or empty parse never gets frozen into the cache. Unrecognised statuses are always re-fetched. `--force` bypasses the cache entirely. Typical numbers on ~100 orders: 63s for a full re-fetch, ~8s when most orders are cached.
 
 **Scraper conventions.** Both fetchers send a full hardcoded Chrome header set plus the session cookie; `fetch-orders.js` uses `maxRedirects: 0` and treats a 3xx, a missing `#my-orders-table`, or a page whose first order number repeats page 1 as "past the last page". `fetch-order-details.js` sleeps 500ms between requests. Both parse with cheerio against site-specific class names — selector breakage is the expected failure mode when the site changes.
 
