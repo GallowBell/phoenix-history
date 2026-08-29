@@ -31,6 +31,34 @@ cp .env.example .env
 
 Then open `.env` and set your `ORDERS_COOKIE` (see [How to get your cookie](#how-to-get-your-cookie) below).
 
+You can also skip this step: `npm start`, `npm run orders`, and `npm run order-details`
+check for a cookie first, and if `.env` doesn't have one they print the steps below,
+prompt you to paste your `PHPSESSID`, verify it with a single request, and write it
+to `.env` for you. `.env` is created from `.env.example` if it doesn't exist yet.
+
+```
+No session cookie found in .env.
+
+  1. Log in at https://www.phoenixnext.com
+  ...
+Paste PHPSESSID: <paste>
+  Checking… ok — 50 orders visible
+  Saved to /path/to/.env
+```
+
+You can paste the bare value, `PHPSESSID=...`, or the entire `cookie:` header — it
+pulls the session id out of any of them.
+
+Notes:
+
+- The check only runs when `.env` has **no** cookie. An **expired** cookie still looks
+  present, so if scraping suddenly returns nothing, refresh it by hand — or blank the
+  `ORDERS_COOKIE` line and re-run to get the prompt back.
+- Setting `ORDERS_COOKIE` in your environment (`ORDERS_COOKIE=… npm run orders`, or
+  `docker -e`) skips the check entirely and takes priority over `.env`.
+- On a non-interactive terminal it prints the instructions and continues rather than
+  failing, so `npm start` still serves already-scraped data with no cookie present.
+
 ### `.env` options
 
 | Variable | Required | Default | Description |
