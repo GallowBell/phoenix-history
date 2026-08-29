@@ -35,7 +35,7 @@ Then open `.env` and set your `ORDERS_COOKIE` (see [How to get your cookie](#how
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `ORDERS_COOKIE` | **Yes** | — | Session cookie from your browser |
+| `ORDERS_COOKIE` | **Yes** | — | `PHPSESSID=...` session cookie (see below) |
 | `ORDERS_URL` | No | `https://www.phoenixnext.com/sales/order/history/?limit=50` | Order history page URL |
 | `ORDERS_OUTPUT_FILE` | No | `orders.json` | Path to save scraped orders |
 | `ORDERS_DETAILS_FILE` | No | `orders-details.json` | Path to save order item details |
@@ -46,14 +46,21 @@ Then open `.env` and set your `ORDERS_COOKIE` (see [How to get your cookie](#how
 
 ## How to get your cookie
 
-1. Open **Chrome** and log in to [phoenixnext.com](https://www.phoenixnext.com)
-2. Go to your [order history page](https://www.phoenixnext.com/sales/order/history/)
-3. Open **DevTools** → **Network** tab (`F12`)
-4. Reload the page and click the first request in the list
-5. In the **Headers** panel, find the `cookie:` request header
-6. Copy the entire value and paste it into `.env` as `ORDERS_COOKIE="..."`
+Only one cookie matters: **`PHPSESSID`**. It is the single cookie the site checks on both the order history and order detail pages — everything else in your browser (Google Analytics, TikTok, Hotjar, Klaviyo, Mixpanel) is ignored by the server.
 
-> **Note:** Cookies expire. If scraping stops working or returns no data, repeat these steps to get a fresh cookie.
+1. Open **Chrome** and log in to [phoenixnext.com](https://www.phoenixnext.com)
+2. Open **DevTools** (`F12`) → **Application** tab
+3. In the sidebar, expand **Storage** → **Cookies** → `https://www.phoenixnext.com`
+4. Find the row named **`PHPSESSID`** and copy its **Value**
+5. Paste it into `.env` like this:
+
+```bash
+ORDERS_COOKIE="PHPSESSID=paste_the_value_here"
+```
+
+> **Note:** `PHPSESSID` expires. If scraping stops working or returns no data, it is almost always this value that died — repeat these steps to get a fresh one.
+
+> Pasting the full `cookie:` request header still works too, since the value is passed to the site untouched. It just sends a few kilobytes of analytics identifiers along with every request.
 
 ---
 

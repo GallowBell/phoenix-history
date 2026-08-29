@@ -37,6 +37,8 @@ Config comes from `.env`, loaded by Node's native `--env-file` flag (Node 20.6+,
 
 `src/orders-config.js` validates `ORDERS_COOKIE` and calls `process.exit(1)` **at import time**. Any module that imports it inherits that behavior, which is why `tests/setup.js` seeds `ORDERS_COOKIE` and `ORDERS_URL` before tests load.
 
+`ORDERS_COOKIE` is never parsed — `orders-config.js:8` reads it and both fetchers drop it verbatim into the `cookie:` header (`fetch-orders.js:22`, `fetch-order-details.js:11`). **`PHPSESSID` is the only cookie the site requires**, verified against the live site: with it alone both `/sales/order/history/` and `/sales/order/view/` return 200 and parse identically to the full browser cookie; without it (even with all 19 others) both return 302 to login. Everything else a browser sends — Google Analytics, TikTok, Hotjar, Klaviyo, Mixpanel, and Magento's `X-Magento-Vary` / `form_key` / `section_data_ids` — is ignored for these GETs. A silent 302 rendering as zero orders or empty `items[]` means `PHPSESSID` expired.
+
 ## Architecture
 
 **Thai column names are the data contract.** The scraper reads the site's `<thead>` cells and uses them verbatim as object keys, so records are keyed by Thai strings that flow unchanged through JSON, Excel, and the UI:
