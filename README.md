@@ -113,6 +113,32 @@ Generates a styled `.xlsx` file with a frozen header row, auto-filter, and a tot
 npm run excel
 ```
 
+### Find orders
+
+Searches the already-scraped `ORDERS_DETAILS_FILE` — no network requests — and prints
+each matching order with the items that matched and their combined total.
+
+```bash
+npm run find "Complete Set"        # default: searches item names
+npm run find sku BX0948-01
+npm run find code LV999MAY
+npm run find order 000434985
+```
+
+Matching is case-insensitive substring. The key is optional and defaults to `name`,
+so `npm run find Alpha` searches item names.
+
+| Key | Searches | Aliases |
+|---|---|---|
+| `name` *(default)* | item names | `product` |
+| `sku` | item SKUs | — |
+| `items` | item names **and** SKUs | `item` |
+| `หมายเลขคำสั่งซื้อ` | order number | `order`, `order-number`, `no` |
+| `โค้ดส่วนลด` | discount code | `code`, `discount` |
+| `orderId` | numeric order id from the detail URL | `id` |
+
+> Requires `orders-details.json`. Run `npm run order-details` first.
+
 ---
 
 ## Web UI
@@ -183,6 +209,7 @@ Starts only the Express API on `http://localhost:3001`.
 │   ├── fetch-orders.js       # Scrapes order history pages
 │   ├── fetch-order-details.js # Scrapes item details per order
 │   ├── sum-orders.js         # Sums total spend
+│   ├── find-orders.js        # Searches scraped orders/items
 │   └── export-excel.js       # Generates Excel file
 ├── client/
 │   └── src/

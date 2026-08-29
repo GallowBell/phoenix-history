@@ -11,6 +11,7 @@
     "order-details": "node --env-file=.env src/index.js order-details",
     "sum": "node --env-file=.env src/index.js sum",
     "excel": "node --env-file=.env src/index.js excel",
+    "find": "node --env-file=.env src/index.js find",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
