@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { parsePrice } from '../../../src/orders-total.js';
 
 /**
  * Provides search, sort, and pagination for an array of flat objects.
@@ -33,10 +34,10 @@ export function useDataTable(data, { defaultPageSize = 20 } = {}) {
     return [...filtered].sort((a, b) => {
       const av = a[sortKey] ?? '';
       const bv = b[sortKey] ?? '';
-      // Numeric sort for price-like values
-      const an = parseFloat(String(av).replace(/[฿,]/g, ''));
-      const bn = parseFloat(String(bv).replace(/[฿,]/g, ''));
-      const cmp = !isNaN(an) && !isNaN(bn) ? an - bn : String(av).localeCompare(String(bv), 'th');
+      // Numeric sort for price-like values, using the shared parser
+      const an = parsePrice(av);
+      const bn = parsePrice(bv);
+      const cmp = an !== null && bn !== null ? an - bn : String(av).localeCompare(String(bv), 'th');
       return sortDir === 'asc' ? cmp : -cmp;
     });
   }, [filtered, sortKey, sortDir]);

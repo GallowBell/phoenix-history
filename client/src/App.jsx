@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import OrdersTable from './components/OrdersTable.jsx';
 import OrderDetailsTable from './components/OrderDetailsTable.jsx';
+import { summarise, formatBaht } from '../../src/orders-total.js';
 
 export default function App() {
   const [tab, setTab] = useState('orders');
@@ -31,20 +32,26 @@ export default function App() {
     fetchData();
   }, []);
 
-  const total = orders.reduce((sum, o) => {
-    const v = parseFloat((o['ราคาสุทธิ'] ?? '').replace(/[฿,]/g, ''));
-    return sum + (isNaN(v) ? 0 : v);
-  }, 0);
+  // Same rule as `npm run sum` and the Excel export: cancelled orders are
+  // not money spent. They are shown beside the total rather than folded in.
+  const { spent, cancelledCount, cancelledAmount } = summarise(orders);
 
   return (
     <div className="app">
       <header className="app-header">
         <h1>Phoenix Order History</h1>
         <div className="header-actions">
-          {total > 0 && (
+          {spent > 0 && (
             <span className="total">
-              Total: 
-              ฿{total.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+              Total: {formatBaht(spent)}
+              {cancelledCount > 0 && (
+                <span
+                  className="total-note"
+                  title={`${cancelledCount} cancelled order(s), not included`}
+                >
+                  +{formatBaht(cancelledAmount)} cancelled
+                </span>
+              )}
             </span>
           )}
           <a href="/api/excel/download" className="btn-excel" download>

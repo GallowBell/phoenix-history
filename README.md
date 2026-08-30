@@ -161,6 +161,10 @@ Error: Session expired — the site redirected to the login page.
   No files were written, so your existing data is untouched.
 ```
 
+In an interactive terminal you are simply asked to paste a fresh `PHPSESSID` at
+that point; it is checked against the site, saved to `.env`, and the command you
+ran continues by itself. Piped or in CI, it stops with the message above instead.
+
 This is detected by the redirect going to the login page, so it is caught wherever
 it happens — including a cookie that dies halfway through a scrape, which would
 otherwise have looked like the end of the order list and truncated the file.
@@ -170,6 +174,20 @@ whatever they held. As a backstop for failures a redirect check cannot see, neit
 file is ever replaced by an empty result: a scrape finding 0 orders, or a detail run
 where no order produced items, stops with an error instead of overwriting. Refresh the cookie and re-run; `npm run order-details` will
 reuse its cache and only re-fetch what it must.
+
+### How totals are counted
+
+Cancelled orders (`ออร์เดอร์ยกเลิก`) are **not** counted as money spent. Every
+view uses the same rule and shows the cancelled money separately, so the figures
+always agree:
+
+| Where | Shows |
+|---|---|
+| `npm run sum` | `Spent`, then `Cancelled` and `Gross` when any exist |
+| `orders.xlsx` | three labelled rows; cancelled order rows struck through |
+| Web UI header | `Total: ฿…` with a muted `+฿… cancelled` note |
+
+`Gross` is spent + cancelled, if you want the older combined figure.
 
 ### Find orders
 

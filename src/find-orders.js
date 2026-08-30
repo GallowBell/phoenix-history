@@ -1,6 +1,6 @@
 import { readFile } from 'fs/promises';
 import { resolve } from 'path';
-import { parsePrice } from './sum-orders.js';
+import { parsePrice } from './orders-total.js';
 
 const ORDER_NUMBER_KEY = 'หมายเลขคำสั่งซื้อ';
 const DISCOUNT_KEY = 'โค้ดส่วนลด';

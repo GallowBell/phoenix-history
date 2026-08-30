@@ -42,6 +42,15 @@ Config comes from `.env`, loaded by Node's native `--env-file` flag (Node 20.6+,
 
 The hook is deliberately **never fatal on a missing cookie** — it warns and returns 0. `npm start` needs no cookie at all (neither `server.js` nor `export-excel.js` imports `orders-config.js`), so failing there would break browsing existing data in Docker or CI; and the scraping commands already report a missing cookie themselves from `orders-config.js:3`. It only exits 1 when `.env` exists but cannot be read, which is a real fault rather than a missing setup. An exported `ORDERS_COOKIE` short-circuits the whole check, because Node's `--env-file` does not override an already-set variable and `ORDERS_COOKIE=… npm run orders` is a working setup.
 
+An **expired** cookie is caught at the other end instead: `src/index.js` wraps the
+command, and on `SessionExpiredError` calls `promptForCookie()` from
+`ensure-cookie.js` — the same prompt-validate-save flow the hook uses — then runs
+the command again, once. This is why `orders-config.js` exposes `cookie` as a
+**getter** and why `fetch-order-details.js` passes `cookie` per request rather
+than baking it into its module-level `HEADERS`: a captured string would make the
+retry reuse the dead cookie. The retry is skipped when `process.stdin` is not a
+TTY, since there is nobody to ask and the error already says what to do.
+
 The retry loop is `resolveSessionId({ ask, check })` with both injected, so it is unit-tested without a pty; `askOnce` wraps `rl.question` with a `close` listener because `readline/promises` leaves the promise pending forever on Ctrl-D.
 
 `ORDERS_COOKIE` is never parsed — `orders-config.js:8` reads it and both fetchers drop it verbatim into the `cookie:` header (`fetch-orders.js:22`, `fetch-order-details.js:11`). **`PHPSESSID` is the only cookie the site requires**, verified against the live site: with it alone both `/sales/order/history/` and `/sales/order/view/` return 200 and parse identically to the full browser cookie; without it (even with all 19 others) both return 302 to login. Everything else a browser sends — Google Analytics, TikTok, Hotjar, Klaviyo, Mixpanel, and Magento's `X-Magento-Vary` / `form_key` / `section_data_ids` — is ignored for these GETs. A 302 rendering as zero orders or empty `items[]` means `PHPSESSID` expired. Both
@@ -138,12 +147,33 @@ Vitest runs in the `node` environment by default. React/hook tests opt into jsdo
 // @vitest-environment jsdom
 ```
 
-Tests are colocated (`src/foo.js` + `src/foo.test.js`); shared fixtures live in `tests/fixtures/`. Coverage of the scrapers and Excel builder is thin — the suite exercises pure helpers (`parsePrice`, `buildUrl`, `getDetailUrl`, `safeHref`, `useDataTable`) and mocks `fs/promises` for server routes, so it does **not** catch exceljs or cheerio breakage. Verify those by running the real command against a fixture.
+Tests are colocated (`src/foo.js` + `src/foo.test.js`); shared fixtures live in `tests/fixtures/`. `export-excel.test.js` drives the real exceljs path via `generateBuffer()` against
+a temp fixture and reads the workbook back, because the `parsePrice` unit tests
+passed while `npm run excel` was broken. Coverage of the scrapers is thin — the suite exercises pure helpers (`parsePrice`, `buildUrl`, `getDetailUrl`, `safeHref`, `useDataTable`) and mocks `fs/promises` for server routes, so it does **not** catch exceljs or cheerio breakage. Verify those by running the real command against a fixture.
 
-## Known inconsistencies
+## Money
 
-- `parsePrice` is duplicated verbatim in `src/sum-orders.js` and `src/export-excel.js`, with two more ad-hoc copies of the same `.replace(/[฿,]/g, '')` logic in `client/src/App.jsx` and `useDataTable.js`.
-- Totals disagree by design gap: `npm run sum` **excludes** cancelled orders (`ออร์เดอร์ยกเลิก`), while the Excel total row and the UI header total include them.
+`src/orders-total.js` is the single source of truth for what an order is worth
+and what "total" means. It holds `parsePrice`, `isCancelled`, `summarise` and
+`formatBaht`, and is deliberately free of Node imports so the browser bundle can
+import it too — `client/vite.config.js` sets `server.fs.allow: ['..']` for the dev
+server (the production build resolves it without help).
+
+**Cancelled orders (`ออร์เดอร์ยกเลิก`) are not money spent.** `summarise` returns
+`spent` (excluding them), `cancelledCount`/`cancelledAmount`, `gross`
+(= spent + cancelled) and `noPrice`. All three consumers show `spent` and report
+the cancelled money beside it rather than folding it in: `npm run sum` prints
+three lines, the Excel sheet has three **labelled** total rows with cancelled
+order rows struck through, and the UI header shows `Total: ฿…` with a muted
+`+฿… cancelled` note.
+
+This replaced a real disagreement: sum excluded cancelled while Excel and the UI
+included them, so the same 103 orders were reported as ฿157,191.00 or ฿166,003.50
+with nothing on screen saying which rule applied. `sum-orders.js` and
+`export-excel.js` still re-export `parsePrice` for back-compat — `export-excel.js`
+must `import` it as well as re-export it, since `export { x } from '…'` does not
+bind the name locally, and that mistake broke `npm run excel` while every unit
+test stayed green.
 
 ## Dependencies
 

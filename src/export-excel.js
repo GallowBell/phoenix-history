@@ -1,8 +1,11 @@
 import ExcelJS from 'exceljs';
 import { readFile } from 'fs/promises';
 import { resolve } from 'path';
+import { summarise, isCancelled, parsePrice, PRICE_KEY } from './orders-total.js';
 
-const PRICE_KEY = 'ราคาสุทธิ';
+// Imported above for use here, and re-exported because this module used to own
+// the copy; the canonical one now lives in orders-total.js.
+export { parsePrice };
 
 const COLUMN_WIDTHS = {
   'หมายเลขคำสั่งซื้อ': 18,
@@ -14,12 +17,6 @@ const COLUMN_WIDTHS = {
   'ดูรายละเอียด': 60,
   'สั่งซื้ออีกครั้ง': 20,
 };
-
-export function parsePrice(raw) {
-  if (!raw || raw === '-') return null;
-  const value = parseFloat(raw.replace(/[฿,]/g, ''));
-  return isNaN(value) ? null : value;
-}
 
 async function buildWorkbook() {
   const ordersPath = resolve(process.env.ORDERS_OUTPUT_FILE ?? 'orders.json');
@@ -46,7 +43,6 @@ async function buildWorkbook() {
   headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
   headerRow.height = 22;
 
-  let total = 0;
   for (const order of orders) {
     const row = sheet.addRow(order);
     row.alignment = { vertical: 'middle' };
@@ -56,17 +52,36 @@ async function buildWorkbook() {
     if (numeric !== null) {
       priceCell.value = numeric;
       priceCell.numFmt = '฿#,##0.00';
-      total += numeric;
+      // Cancelled orders stay visible in the sheet but are struck through, so
+      // the rows and the total below tell the same story.
+      if (isCancelled(order)) row.font = { strike: true, color: { argb: 'FF999999' } };
     }
   }
 
+  const { spent, cancelledCount, cancelledAmount, gross } = summarise(orders);
+  const labelKey = keys[0];
+
   sheet.addRow({});
-  const totalRow = sheet.addRow({ [PRICE_KEY]: total });
-  totalRow.font = { bold: true };
-  totalRow.getCell(PRICE_KEY).numFmt = '฿#,##0.00';
-  totalRow.getCell(PRICE_KEY).fill = {
-    type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' },
+  const addTotal = (label, value, highlight) => {
+    const row = sheet.addRow({ [labelKey]: label, [PRICE_KEY]: value });
+    row.font = { bold: true };
+    row.getCell(PRICE_KEY).numFmt = '฿#,##0.00';
+    if (highlight) {
+      row.getCell(PRICE_KEY).fill = {
+        type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' },
+      };
+    }
+    return row;
   };
+
+  // Labelled, because an unlabelled bold number was the whole problem: it
+  // silently included cancelled orders while `npm run sum` excluded them.
+  addTotal('Spent (excl. cancelled)', spent, true);
+  if (cancelledCount > 0) {
+    addTotal(`Cancelled (${cancelledCount})`, cancelledAmount, false);
+    addTotal('Gross (incl. cancelled)', gross, false);
+  }
+  const total = spent;
 
   sheet.autoFilter = {
     from: { row: 1, column: 1 },

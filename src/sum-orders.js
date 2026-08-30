@@ -1,37 +1,24 @@
 import { readFile } from 'fs/promises';
 import { resolve } from 'path';
+import { summarise, formatBaht } from './orders-total.js';
 
-export function parsePrice(raw) {
-  if (!raw || raw === '-') return null;
-  const value = parseFloat(raw.replace(/[฿,]/g, ''));
-  return isNaN(value) ? null : value;
-}
+// Re-exported because this used to be the canonical copy; the logic now lives
+// in orders-total.js alongside the rule about what counts toward a total.
+export { parsePrice } from './orders-total.js';
 
 export async function run() {
   const filePath = process.env.ORDERS_OUTPUT_FILE ?? 'orders.json';
-  const absPath = resolve(filePath);
+  const orders = JSON.parse(await readFile(resolve(filePath), 'utf-8'));
+  const { count, spent, cancelledCount, cancelledAmount, gross, noPrice } = summarise(orders);
 
-  const orders = JSON.parse(await readFile(absPath, 'utf-8'));
+  console.log(`Orders   : ${count}`);
+  if (noPrice > 0) console.log(`Skipped  : ${noPrice} (no price)`);
+  console.log(`Spent    : ${formatBaht(spent)}`);
 
-  const KEY = 'ราคาสุทธิ';
-  const STATUS_KEY = 'สถานะ';
-  const CANCELLED_STATUS = 'ออร์เดอร์ยกเลิก';
-
-  let total = 0;
-  let skipped = 0;
-  let cancelled = 0;
-
-  for (const order of orders) {
-    if (order[STATUS_KEY] === CANCELLED_STATUS) { cancelled++; continue; }
-    const value = parsePrice(order[KEY]);
-    if (value === null) { skipped++; continue; }
-    total += value;
+  // Show the cancelled money rather than silently dropping it — the Excel
+  // export and the UI used to include it, and the gap looked like a bug.
+  if (cancelledCount > 0) {
+    console.log(`Cancelled: ${formatBaht(cancelledAmount)} (${cancelledCount} order(s), not counted above)`);
+    console.log(`Gross    : ${formatBaht(gross)} (spent + cancelled)`);
   }
-
-  const formatted = total.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-  console.log(`Orders : ${orders.length}`);
-  if (cancelled > 0) console.log(`Excluded: ${cancelled} (cancelled)`);
-  if (skipped > 0) console.log(`Skipped: ${skipped} (no price)`);
-  console.log(`Total  : ฿${formatted}`);
 }

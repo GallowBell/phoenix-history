@@ -6,6 +6,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    // The totals rule lives in ../src/orders-total.js and is shared with the
+    // CLI. Vite's root is client/, so dev-serving a file above it must be
+    // allowed explicitly; the production build resolves it without this.
+    fs: { allow: ['..'] },
     proxy: {
       '/api': {
         target: 'http://localhost:3001',
