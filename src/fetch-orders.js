@@ -3,6 +3,7 @@ import * as cheerio from 'cheerio';
 import { readFile, writeFile } from 'fs/promises';
 import config from './orders-config.js';
 import { SessionExpiredError, isRedirect, isLoginRedirect, NO_REDIRECT } from './session.js';
+import { isTerminal } from './orders-total.js';
 
 const ORDER_NUMBER_KEY = 'หมายเลขคำสั่งซื้อ';
 
@@ -85,11 +86,26 @@ async function fetchPage(page, headers) {
   return rows;
 }
 
-async function fetchOrders() {
-  const allOrders = [];
+async function fetchOrders({ force = false } = {}) {
+  const existing = await loadExisting(config.outputFile);
+  // `--force` re-reads every page. The existing file is still loaded, because
+  // the empty-overwrite guard below has to know what it would be replacing.
+  const known = force ? new Set() : new Set(existing.map(numberOf).filter(Boolean));
+  const pendingRemaining = force ? new Set() : pendingNumbers(existing);
+
+  if (known.size) {
+    console.error(
+      `Resuming from ${existing.length} order(s) on disk` +
+        (pendingRemaining.size ? `, ${pendingRemaining.size} still in progress` : '') +
+        '. Pass --force for a full re-scrape.'
+    );
+  }
+
+  const scraped = [];
   const headers = [];
   let firstOrderNumber = null;
   let page = 1;
+  let stoppedEarly = false;
 
   while (true) {
     console.error(`Fetching page ${page}…`);
@@ -113,27 +129,124 @@ async function fetchOrders() {
       firstOrderNumber = pageFirstOrderNumber;
     }
 
-    allOrders.push(...rows);
-    console.error(`Page ${page}: ${rows.length} orders (total: ${allOrders.length})`);
+    scraped.push(...rows);
+    for (const row of rows) pendingRemaining.delete(numberOf(row));
+    console.error(`Page ${page}: ${rows.length} orders (total: ${scraped.length})`);
+
+    if (canStopEarly(rows, known, pendingRemaining)) {
+      console.error(`Page ${page}: already up to date from here down, stopping.`);
+      stoppedEarly = true;
+      break;
+    }
     page++;
   }
 
-  const json = JSON.stringify(allOrders, null, 2);
+  const merged = mergeOrders(scraped, existing);
+  // Counted over distinct order numbers, not raw rows: a merge only ever grows
+  // the file, so the growth *is* the number of new orders, and the rest of what
+  // was scraped is a re-check. Counting rows would double-count an order that
+  // arrived twice because the list shifted mid-scrape.
+  const distinct = new Set(scraped.map(numberOf).filter((n) => n != null)).size;
+  const added = merged.length - existing.length;
+  const rechecked = distinct - added;
 
   if (config.outputFile) {
-    const existing = await countExisting(config.outputFile);
-    if (refusesEmptyOverwrite(allOrders.length, existing)) {
+    if (refusesEmptyOverwrite(scraped.length, existing.length)) {
       throw new Error(
-        `Scraped 0 orders but ${config.outputFile} already holds ${existing} — refusing to overwrite it.\n` +
+        `Scraped 0 orders but ${config.outputFile} already holds ${existing.length} — refusing to overwrite it.\n` +
           '  The site returned no order table. That usually means the page layout changed,\n' +
           '  or the session is no longer valid. Your existing data has been left alone.'
       );
     }
-    await writeFile(config.outputFile, json, 'utf-8');
-    console.log(`Wrote ${allOrders.length} orders to ${config.outputFile}`);
+    // A merge can only ever grow the list. Shrinking means the scrape and the
+    // file disagree about which orders exist, which is not something to write.
+    if (merged.length < existing.length) {
+      throw new Error(
+        `Merge produced ${merged.length} orders but ${config.outputFile} holds ${existing.length} — refusing to overwrite it.`
+      );
+    }
+    await writeFile(config.outputFile, JSON.stringify(merged, null, 2), 'utf-8');
+    console.log(
+      `Wrote ${merged.length} orders to ${config.outputFile}` +
+        ` (${added} new, ${rechecked} re-checked` +
+        (stoppedEarly ? `, ${existing.length - rechecked} untouched)` : ')')
+    );
   } else {
-    console.log(json);
+    console.log(JSON.stringify(merged, null, 2));
   }
+}
+
+/** The previous run's orders, or [] when there is no readable file. */
+export async function loadExisting(path) {
+  if (!path) return [];
+  try {
+    const previous = JSON.parse(await readFile(path, 'utf-8'));
+    return Array.isArray(previous) ? previous : [];
+  } catch {
+    return [];
+  }
+}
+
+const numberOf = (order) => order?.[ORDER_NUMBER_KEY];
+
+/**
+ * Order numbers already on disk whose status can still change.
+ *
+ * These are why the scrape cannot simply stop at the first familiar order: a
+ * `กำลังเตรียมสินค้า` order will later become `จัดส่งแล้ว`, and stopping above
+ * it would leave that stale forever. Paging continues until every one has been
+ * re-read, which in practice costs nothing — pending orders are the newest, so
+ * they sit on the first page or two.
+ */
+export function pendingNumbers(existing) {
+  const out = new Set();
+  for (const order of existing ?? []) {
+    if (isTerminal(order)) continue;
+    const number = numberOf(order);
+    if (number) out.add(number);
+  }
+  return out;
+}
+
+/**
+ * Can paging stop here?
+ *
+ * The history is newest-first and append-only, so the first order we recognise
+ * marks the boundary: everything below it is older, and therefore already on
+ * disk. One known order on the page is enough — requiring the *whole* page to
+ * be known costs an extra page fetch whenever new orders share a page with old
+ * ones, which is the common case.
+ *
+ * The pending check overrides that: a known order whose status can still change
+ * has to be re-read wherever it sits, so paging continues until none are left.
+ */
+export function canStopEarly(rows, known, pendingRemaining) {
+  if (!known.size) return false;
+  if (!rows.some((row) => known.has(numberOf(row)))) return false;
+  return pendingRemaining.size === 0;
+}
+
+/**
+ * Scraped rows sit on top of whatever was not re-read.
+ *
+ * The site lists newest first and the scrape always starts at page 1, so the
+ * scraped run is a prefix of the true list — concatenating preserves order.
+ * A re-read order replaces its stored copy, which is how a status change lands.
+ *
+ * The scrape is de-duplicated first, keeping the earliest (newest) copy: an
+ * order placed while paging shifts every later row down one, so the same order
+ * can arrive twice on consecutive pages.
+ */
+export function mergeOrders(scraped, existing) {
+  const seen = new Set();
+  const deduped = [];
+  for (const order of scraped ?? []) {
+    const number = numberOf(order);
+    if (number != null && seen.has(number)) continue;
+    if (number != null) seen.add(number);
+    deduped.push(order);
+  }
+  return [...deduped, ...(existing ?? []).filter((order) => !seen.has(numberOf(order)))];
 }
 
 /** How many orders the previous run left on disk; 0 when there is no readable file. */
@@ -156,5 +269,7 @@ export function refusesEmptyOverwrite(newCount, existingCount) {
 }
 
 export async function run() {
-  await fetchOrders();
+  // The dispatcher forwards nothing; commands read their own flags, as
+  // `order-details` does for its own --force.
+  await fetchOrders({ force: process.argv.includes('--force') });
 }

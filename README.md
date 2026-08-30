@@ -98,11 +98,36 @@ Run these in order the first time. Each command reads from `.env` automatically.
 
 ### Fetch all orders
 
-Scrapes all paginated order history pages and saves them to `ORDERS_OUTPUT_FILE`.
+Scrapes the paginated order history and saves it to `ORDERS_OUTPUT_FILE`.
 
 ```bash
 npm run orders
 ```
+
+**Later runs are incremental.** The order history is newest-first and only ever
+grows, so the scrape stops as soon as it reaches an order it already has. On
+~100 orders that is **one page fetched instead of four**:
+
+```
+Resuming from 103 order(s) on disk, 2 still in progress. Pass --force for a full re-scrape.
+Fetching page 1…
+Page 1: 50 orders (total: 50)
+Page 1: already up to date from here down, stopping.
+Wrote 103 orders to orders.json (0 new, 50 re-checked, 53 untouched)
+```
+
+Orders still in progress (`กำลังเตรียมสินค้า`) are always re-read wherever they
+sit in the list, so a status that later becomes `จัดส่งแล้ว` is picked up rather
+than frozen at whatever it was on the first scrape.
+
+To ignore what is on disk and re-crawl every page:
+
+```bash
+npm run orders -- --force
+```
+
+Your existing file is never replaced by a smaller one: a scrape that returns no
+orders, or a merge that would lose orders, is refused and leaves the file alone.
 
 ### Fetch order item details
 

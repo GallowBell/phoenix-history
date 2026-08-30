@@ -9,6 +9,7 @@ import {
   redirectTarget,
   NO_REDIRECT,
 } from './session.js';
+import { isTerminal, STATUS_KEY } from './orders-total.js';
 
 const HEADERS = {
   accept:
@@ -29,13 +30,10 @@ const HEADERS = {
 };
 
 const ORDER_NUMBER_KEY = 'หมายเลขคำสั่งซื้อ';
-const STATUS_KEY = 'สถานะ';
 
 // Orders in these states are finished and their items can never change, so a
 // previous run's result is safe to reuse. Any other status — including one we
 // don't recognise — is re-fetched every time.
-const TERMINAL_STATUSES = new Set(['จัดส่งแล้ว', 'ออร์เดอร์ยกเลิก']);
-
 // The site saturates around 4 concurrent detail requests; 8 measured no faster.
 const CONCURRENCY = 4;
 
@@ -117,7 +115,7 @@ export async function loadCache(path) {
  */
 export function isCacheable(cached, order) {
   if (!cached || cached.error) return false;
-  if (!TERMINAL_STATUSES.has(order[STATUS_KEY])) return false;
+  if (!isTerminal(order)) return false;
   if (cached[STATUS_KEY] !== order[STATUS_KEY]) return false;
   return Array.isArray(cached.items) && cached.items.length > 0;
 }

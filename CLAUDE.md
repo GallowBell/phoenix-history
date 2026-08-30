@@ -131,6 +131,34 @@ Progress lines are printed through `createOrderedLog()`, which parks each finish
 
 Detail fetching runs through `mapPool(items, CONCURRENCY, worker)` at 4 in flight (measured: the site saturates there, 8 is no faster) and writes results back by index, so output order always matches `orders.json`. Before fetching, `isCacheable()` decides whether the previous `ORDERS_DETAILS_FILE` entry can be reused: only for a **terminal status** (`จัดส่งแล้ว`, `ออร์เดอร์ยกเลิก`) whose status is unchanged, with no recorded `error` and a non-empty `items[]` — so a failed or empty parse never gets frozen into the cache. Unrecognised statuses are always re-fetched. `--force` bypasses the cache entirely. Typical numbers on ~100 orders: 63s for a full re-fetch, ~8s when most orders are cached.
 
+**The order list scrape is incremental.** `fetch-orders.js` reads the existing
+`orders.json` first and stops paging at the first order number it already has —
+the history is newest-first and append-only, so a familiar order means
+everything below it is on disk. On ~100 orders that is 1 page fetched instead
+of 4. `--force` re-crawls everything.
+
+Two rules keep that from going stale, both in `canStopEarly` / `pendingNumbers`:
+
+- **One known order on a page is enough to stop.** Requiring the whole page to
+  be known costs an extra fetch whenever new and old orders share a page, which
+  is the usual case.
+- **Except while a known order is still in progress.** A
+  `กำลังเตรียมสินค้า` order will later become `จัดส่งแล้ว`; stopping above it
+  would freeze that status forever. Paging continues until every non-terminal
+  order on disk has been re-read — cheap in practice, since pending orders are
+  the newest.
+
+`TERMINAL_STATUSES` / `isTerminal()` moved into `orders-total.js`, which already
+owned `STATUS_KEY` and `CANCELLED_STATUS`; `fetch-order-details.js` had a
+private duplicate and now imports it. An unrecognised status counts as still
+moving, so a status the site adds later is re-fetched rather than frozen.
+
+`mergeOrders()` puts the scraped run on top of whatever was not re-read, so a
+re-read order replaces its stored copy (that is how a status change lands) and
+the newest-first ordering survives the join. A merge can only grow the list;
+writing fewer orders than the file already held is refused, alongside the
+existing empty-scrape guard.
+
 **Scraper conventions.** Both fetchers send a full hardcoded Chrome header set plus the session cookie and both run with redirects disabled. `fetch-orders.js` treats a missing `#my-orders-table`, a page whose first order number repeats page 1, or a 3xx **on page >1** as "past the last page" — a 3xx on page 1 is an expired session instead (see Environment). `fetch-order-details.js` does not sleep between requests; it relies on `CONCURRENCY = 4` for pacing. Both parse with cheerio against site-specific class names — selector breakage is the expected failure mode when the site changes.
 
 **Server.** `server.js` exports the Express app and only calls `listen` when `NODE_ENV !== 'test'`, so tests drive it with supertest. It binds `127.0.0.1` only. Routes just read the JSON files and 404 with a message naming the npm script to run. `/api/excel/download` imports `generateBuffer` from `export-excel.js` lazily.
