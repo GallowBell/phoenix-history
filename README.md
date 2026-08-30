@@ -141,6 +141,36 @@ Generates a styled `.xlsx` file with a frozen header row, auto-filter, and a tot
 npm run excel
 ```
 
+### When the session expires
+
+`PHPSESSID` expires regularly. When it does, the site silently redirects every
+request to its login page, which used to show up as a successful run that found
+`0 item(s)` on every order — and then wrote those empty results over your data.
+
+Both scrapers now stop instead:
+
+```
+Error: Session expired — the site redirected to the login page.
+
+  Your PHPSESSID is no longer valid. To refresh it:
+    1. Open https://www.phoenixnext.com in your browser and sign in
+    2. DevTools → Application → Cookies → https://www.phoenixnext.com
+    3. Copy the PHPSESSID value
+    4. Set ORDERS_COOKIE="PHPSESSID=<value>" in .env
+
+  No files were written, so your existing data is untouched.
+```
+
+This is detected by the redirect going to the login page, so it is caught wherever
+it happens — including a cookie that dies halfway through a scrape, which would
+otherwise have looked like the end of the order list and truncated the file.
+
+Nothing is written on such a run, so `orders.json` and `orders-details.json` keep
+whatever they held. As a backstop for failures a redirect check cannot see, neither
+file is ever replaced by an empty result: a scrape finding 0 orders, or a detail run
+where no order produced items, stops with an error instead of overwriting. Refresh the cookie and re-run; `npm run order-details` will
+reuse its cache and only re-fetch what it must.
+
 ### Find orders
 
 Searches the already-scraped `ORDERS_DETAILS_FILE` — no network requests — and prints
@@ -164,6 +194,10 @@ so `npm run find Alpha` searches item names.
 | `หมายเลขคำสั่งซื้อ` | order number | `order`, `order-number`, `no` |
 | `โค้ดส่วนลด` | discount code | `code`, `discount` |
 | `orderId` | numeric order id from the detail URL | `id` |
+
+Matched text is highlighted in the output. Colour follows the usual conventions:
+it is off when the output is piped or when `NO_COLOR` is set, and can be forced
+through a pipe with `FORCE_COLOR=1`.
 
 > Requires `orders-details.json`. Run `npm run order-details` first.
 

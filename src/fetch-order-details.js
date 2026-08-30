@@ -2,6 +2,13 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { readFile, writeFile } from 'fs/promises';
 import config from './orders-config.js';
+import {
+  SessionExpiredError,
+  assertSession,
+  isRedirect,
+  redirectTarget,
+  NO_REDIRECT,
+} from './session.js';
 
 const HEADERS = {
   accept:
@@ -51,7 +58,16 @@ export function extractOrderId(url) {
 
 /** Fetch one order detail page and extract items from .order-items */
 async function fetchOrderItems(url) {
-  const response = await axios.get(url, { headers: { ...HEADERS, referer: url } });
+  const response = await axios.get(url, {
+    headers: { ...HEADERS, referer: url },
+    ...NO_REDIRECT,
+  });
+  assertSession(response, url);
+  if (isRedirect(response.status)) {
+    // Not the login page, so the session is fine — this one order redirected
+    // somewhere else. Fail just this order rather than aborting the run.
+    throw new Error(`unexpected redirect to ${redirectTarget(response) ?? 'an unknown location'}`);
+  }
   const $ = cheerio.load(response.data);
 
   const items = [];
@@ -119,30 +135,81 @@ export async function mapPool(items, limit, worker) {
   return out;
 }
 
+/**
+ * Print progress in index order even though 4 workers finish out of order.
+ * Each finished index parks its print until every earlier index has printed,
+ * so the log counts 1, 2, 3… while requests are still in flight.
+ *
+ * Takes a function rather than a string so each caller keeps its own stream
+ * (log/warn/error); pass null for an index that prints nothing but must still
+ * release the ones queued behind it — a cached order that stalled the cursor
+ * would silence the rest of the run.
+ */
+export function createOrderedLog() {
+  const pending = new Map();
+  let next = 0;
+  return function report(index, print) {
+    pending.set(index, print);
+    while (pending.has(next)) {
+      const queued = pending.get(next);
+      pending.delete(next);
+      next++;
+      if (queued) queued();
+    }
+  };
+}
+
+/**
+ * Refuse to replace a file that has items with a run that produced none. The
+ * redirect guard catches an expired session, but not a 200 login page or the
+ * documented failure mode of the cheerio selectors going stale — both of which
+ * turn every order into `items: []` and would otherwise be written straight out.
+ */
+export function refusesEmptyOverwrite(results, cache) {
+  if (!results.length || !cache.size) return false;
+  const producedItems = results.some((r) => r.items?.length > 0);
+  const hadItems = [...cache.values()].some((c) => c.items?.length > 0);
+  return !producedItems && hadItems;
+}
+
 async function main() {
   const force = process.argv.includes('--force');
   const ordersPath = process.env.ORDERS_OUTPUT_FILE ?? 'orders.json';
   const outputPath = process.env.ORDERS_DETAILS_FILE ?? 'orders-details.json';
 
   const orders = JSON.parse(await readFile(ordersPath, 'utf-8'));
-  const cache = force ? new Map() : await loadCache(outputPath);
+  // Always load the previous run, even under --force: the cache is bypassed
+  // but the empty-overwrite guard still has to know what is already on disk.
+  const previous = await loadCache(outputPath);
+  const cache = force ? new Map() : previous;
 
   let reused = 0;
   let fetched = 0;
   let failed = 0;
+  // Set by the first worker to hit the login redirect. Requests already in
+  // flight still finish, but no further order is started — grinding through
+  // the remaining orders would only produce more empty results.
+  let expired = null;
+  const report = createOrderedLog();
 
   const results = await mapPool(orders, CONCURRENCY, async (order, i) => {
+    if (expired) {
+      report(i, null);
+      return { ...order, orderId: null, items: [] };
+    }
+
     const label = `[${i + 1}/${orders.length}]`;
     const cached = cache.get(order[ORDER_NUMBER_KEY]);
 
     if (isCacheable(cached, order)) {
       reused++;
+      report(i, null);
       return { ...order, orderId: cached.orderId, items: cached.items };
     }
 
     const url = getDetailUrl(order);
     if (!url) {
-      console.warn(`${label} No detail URL found, skipping`);
+      report(i, () => console.warn(`${label} No detail URL found, skipping`));
       return { ...order, orderId: null, items: [] };
     }
 
@@ -151,14 +218,32 @@ async function main() {
     try {
       const items = await fetchOrderItems(url);
       fetched++;
-      console.log(`${label} order ${orderId} → ${items.length} item(s)`);
+      report(i, () => console.log(`${label} order ${orderId} → ${items.length} item(s)`));
       return { ...order, orderId, items };
     } catch (err) {
+      if (err instanceof SessionExpiredError) {
+        expired ??= err;
+        report(i, null);
+        return { ...order, orderId, items: [] };
+      }
       failed++;
-      console.error(`${label} order ${orderId} ✗ ${err.message}`);
+      report(i, () => console.error(`${label} order ${orderId} ✗ ${err.message}`));
       return { ...order, orderId, items: [], error: err.message };
     }
   });
+
+  // Throw before writing: a run that hit the login page has nothing worth
+  // saving, and overwriting here is exactly how good data gets lost.
+  if (expired) throw expired;
+
+  if (refusesEmptyOverwrite(results, previous)) {
+    throw new Error(
+      `Every one of ${results.length} orders came back with no items, but ${outputPath} ` +
+        'already holds items — refusing to overwrite it.\n' +
+        '  Either the page markup changed, or the site served a login page with a 200.\n' +
+        '  Your existing data has been left alone.'
+    );
+  }
 
   await writeFile(outputPath, JSON.stringify(results, null, 2), 'utf-8');
 
