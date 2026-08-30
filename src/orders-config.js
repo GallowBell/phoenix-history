@@ -5,7 +5,12 @@ if (!process.env.ORDERS_COOKIE) {
 
 const config = {
   url: process.env.ORDERS_URL ?? 'https://www.phoenixnext.com/sales/order/history/?limit=50',
-  cookie: process.env.ORDERS_COOKIE,
+  // A getter, not a snapshot: when a run stops on an expired session and the
+  // user pastes a fresh cookie, the retry has to pick up the new value. A
+  // captured string would silently retry with the dead one.
+  get cookie() {
+    return process.env.ORDERS_COOKIE;
+  },
   outputFile: process.env.ORDERS_OUTPUT_FILE ?? null,
 };
 

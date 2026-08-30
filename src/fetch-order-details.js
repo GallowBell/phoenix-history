@@ -15,7 +15,6 @@ const HEADERS = {
     'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
   'accept-language': 'en,th-TH;q=0.9,th;q=0.8,ja;q=0.7',
   'cache-control': 'no-cache',
-  cookie: config.cookie,
   pragma: 'no-cache',
   'sec-ch-ua': '"Google Chrome";v="147", "Not.A/Brand";v="8", "Chromium";v="147"',
   'sec-ch-ua-mobile': '?0',
@@ -59,7 +58,9 @@ export function extractOrderId(url) {
 /** Fetch one order detail page and extract items from .order-items */
 async function fetchOrderItems(url) {
   const response = await axios.get(url, {
-    headers: { ...HEADERS, referer: url },
+    // cookie is read per request, not baked into HEADERS, so a retry after a
+    // re-prompt uses the new session id.
+    headers: { ...HEADERS, cookie: config.cookie, referer: url },
     ...NO_REDIRECT,
   });
   assertSession(response, url);

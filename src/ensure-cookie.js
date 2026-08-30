@@ -126,8 +126,8 @@ export async function validate(sessionId, url) {
   return { ok: true, rows };
 }
 
-function printInstructions() {
-  console.log('\nNo session cookie found in .env.\n');
+function printInstructions(heading) {
+  console.log(`\n${heading}\n`);
   console.log('  1. Log in at https://www.phoenixnext.com');
   console.log('  2. Open Chrome DevTools (F12) → Application tab');
   console.log('  3. Storage → Cookies → https://www.phoenixnext.com');
@@ -191,23 +191,28 @@ export function askOnce(rl, prompt) {
   });
 }
 
-export async function run() {
-  // An explicitly exported ORDERS_COOKIE wins: Node's --env-file does not
-  // override an already-set variable, so `ORDERS_COOKIE=… npm run orders`
-  // and `docker -e ORDERS_COOKIE=…` are working setups we must not disturb.
-  if (process.env.ORDERS_COOKIE?.trim()) return;
-
+/**
+ * Prompt for a session id, check it against the live site, and save it to
+ * .env. Returns the saved id, or null when there is no one to ask (not a TTY)
+ * or the user gave up — callers decide what that means for them.
+ *
+ * Shared by the pre-command hook (no cookie yet) and by the retry that runs
+ * when a command stops on an expired one, so both paths look identical to the
+ * user and there is one place that writes the file.
+ */
+export async function promptForCookie({
+  heading = 'No session cookie found in .env.',
+} = {}) {
   const envText = await readEnv();
 
-  if (hasUsableCookie(envText)) return;
-
   if (!process.stdin.isTTY) {
-    console.error('\nNo session cookie in .env, and this is not an interactive terminal.');
+    console.error(`\n${heading}`);
+    console.error('This is not an interactive terminal, so it cannot be entered here.');
     console.error('Set ORDERS_COOKIE — see "How to get your cookie" in README.md.\n');
-    return;
+    return null;
   }
 
-  printInstructions();
+  printInstructions(heading);
 
   const url = urlFrom(envText);
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -225,11 +230,23 @@ export async function run() {
     rl.close();
   }
 
-  if (!resolved) return;
+  if (!resolved) return null;
 
   await writeFile(ENV_PATH, upsertCookie(envText, resolved.sessionId), 'utf-8');
   console.log(`ok — ${resolved.rows} orders visible`);
   console.log(`  Saved to ${ENV_PATH}\n`);
+  return resolved.sessionId;
+}
+
+export async function run() {
+  // An explicitly exported ORDERS_COOKIE wins: Node's --env-file does not
+  // override an already-set variable, so `ORDERS_COOKIE=… npm run orders`
+  // and `docker -e ORDERS_COOKIE=…` are working setups we must not disturb.
+  if (process.env.ORDERS_COOKIE?.trim()) return;
+
+  if (hasUsableCookie(await readEnv())) return;
+
+  await promptForCookie();
 }
 
 // Invoked directly by the npm pre* scripts, not through src/index.js. Guarded so
