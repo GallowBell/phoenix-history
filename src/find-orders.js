@@ -82,6 +82,48 @@ export function findOrders(orders, field, query) {
   return results;
 }
 
+/** Escape a user query so it can be used as a literal in a RegExp. */
+export function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Wrap every case-insensitive occurrence of `query` in `text` using `wrap`.
+ * With no `wrap` the text is returned untouched, which is how colour is
+ * disabled — callers never have to branch.
+ */
+export function highlight(text, query, wrap) {
+  const s = text == null ? '' : String(text);
+  if (!query || !wrap) return s;
+  return s.replace(new RegExp(escapeRegExp(query), 'gi'), (match) => wrap(match));
+}
+
+/**
+ * Which printed cells a search on each field should mark. Keyed the same way
+ * as FIELDS, so adding a searchable field means adding its cells here too.
+ */
+export const HIGHLIGHTS = {
+  [ORDER_NUMBER_KEY]: new Set(['orderNumber']),
+  [DISCOUNT_KEY]: new Set(['discount']),
+  orderId: new Set(),
+  items: new Set(['name', 'sku']),
+  name: new Set(['name']),
+  sku: new Set(['sku']),
+};
+
+/** Black-on-yellow, the same emphasis the web UI's <mark> gives. */
+const MARK = (match) => `\x1b[30;43m${match}\x1b[0m`;
+
+/**
+ * Colour is for humans: off when piped or when NO_COLOR is set, on when
+ * FORCE_COLOR asks for it even through a pipe (grep's convention).
+ */
+export function colorEnabled(env = process.env, stream = process.stdout) {
+  if (env.NO_COLOR) return false;
+  if (env.FORCE_COLOR && env.FORCE_COLOR !== '0') return true;
+  return Boolean(stream.isTTY);
+}
+
 function formatBaht(value) {
   return `฿${value.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
@@ -107,6 +149,11 @@ export async function run() {
   }
 
   const results = findOrders(orders, field, query);
+  const mark = colorEnabled() ? MARK : null;
+  // Only the searched field is highlighted, so a mark always shows why a row
+  // matched — `find id 1` should not paint every name containing a "1".
+  const marked = HIGHLIGHTS[field] ?? new Set();
+  const hl = (value, cell) => highlight(value, query, marked.has(cell) ? mark : null);
 
   if (!results.length) {
     console.log(`No orders found where ${field} contains "${query}".`);
@@ -121,12 +168,14 @@ export async function run() {
     if (price !== null) total += price;
     matchedItems += items.length;
 
-    const discount = order[DISCOUNT_KEY] ? `  ${order[DISCOUNT_KEY]}` : '';
+    const discount = order[DISCOUNT_KEY] ? `  ${hl(order[DISCOUNT_KEY], 'discount')}` : '';
     console.log(
-      `\n${order[ORDER_NUMBER_KEY]}  ${order[DATE_KEY]}  ${order[STATUS_KEY]}  ${order[PRICE_KEY]}${discount}`
+      `\n${hl(order[ORDER_NUMBER_KEY], 'orderNumber')}  ${order[DATE_KEY]}  ${order[STATUS_KEY]}  ${order[PRICE_KEY]}${discount}`
     );
     for (const item of items) {
-      console.log(`   • ${item.name}  [${item.sku}]  ×${item.quantity}  ${item.subtotal}`);
+      console.log(
+        `   • ${hl(item.name, 'name')}  [${hl(item.sku, 'sku')}]  ×${item.quantity}  ${item.subtotal}`
+      );
     }
   }
 

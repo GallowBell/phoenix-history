@@ -241,3 +241,11 @@ thead th.sorted { color: var(--accent-light); }
 thead th:hover { color: var(--text); }
 
 .dt-empty { text-align: center; color: var(--muted); padding: 24px !important; }
+
+/* Search-match highlight — mirrors the terminal colours used by npm run find */
+mark.hl {
+  background: #ffd54f;
+  color: #1a1a1a;
+  padding: 0 1px;
+  border-radius: 2px;
+}

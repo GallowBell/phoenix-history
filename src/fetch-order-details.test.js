@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getDetailUrl, extractOrderId, isCacheable, mapPool } from './fetch-order-details.js';
+import { getDetailUrl, extractOrderId, isCacheable, mapPool, createOrderedLog, refusesEmptyOverwrite } from './fetch-order-details.js';
 
 describe('fetch-order-details getDetailUrl', () => {
   it('finds the detail URL among order object values', () => {
@@ -92,5 +92,85 @@ describe('fetch-order-details mapPool', () => {
 
   it('handles an empty list without hanging', async () => {
     await expect(mapPool([], 4, async () => 1)).resolves.toEqual([]);
+  });
+});
+
+describe('createOrderedLog', () => {
+  it('holds a later index until the earlier ones have printed', () => {
+    const out = [];
+    const report = createOrderedLog();
+
+    report(2, () => out.push('third'));
+    expect(out).toEqual([]); // 0 and 1 are still outstanding
+
+    report(1, () => out.push('second'));
+    expect(out).toEqual([]); // still waiting on 0
+
+    report(0, () => out.push('first'));
+    expect(out).toEqual(['first', 'second', 'third']);
+  });
+
+  it('prints immediately when indexes arrive in order', () => {
+    const out = [];
+    const report = createOrderedLog();
+    report(0, () => out.push('a'));
+    expect(out).toEqual(['a']);
+    report(1, () => out.push('b'));
+    expect(out).toEqual(['a', 'b']);
+  });
+
+  it('releases the queue behind a silent index', () => {
+    const out = [];
+    const report = createOrderedLog();
+    report(1, () => out.push('second'));
+    report(0, null); // a cached order prints nothing but must not stall the run
+    expect(out).toEqual(['second']);
+  });
+
+  it('stays ordered under a shuffled completion sequence', () => {
+    const out = [];
+    const report = createOrderedLog();
+    const order = [3, 7, 0, 2, 9, 1, 8, 5, 4, 6];
+    for (const i of order) report(i, () => out.push(i));
+    expect(out).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  });
+
+  it('keeps each report independent', () => {
+    const a = [];
+    const b = [];
+    const reportA = createOrderedLog();
+    const reportB = createOrderedLog();
+    reportA(0, () => a.push('a0'));
+    reportB(1, () => b.push('b1'));
+    expect(a).toEqual(['a0']);
+    expect(b).toEqual([]);
+  });
+});
+
+describe('refusesEmptyOverwrite (details)', () => {
+  const withItems = (n) => ({ items: Array.from({ length: n }, (_, i) => ({ sku: `S${i}` })) });
+  const cacheOf = (...records) => new Map(records.map((r, i) => [String(i), r]));
+
+  it('refuses when every order came back empty but the file had items', () => {
+    const results = [withItems(0), withItems(0)];
+    expect(refusesEmptyOverwrite(results, cacheOf(withItems(2), withItems(1)))).toBe(true);
+  });
+
+  it('allows the write when even one order produced items', () => {
+    const results = [withItems(0), withItems(1)];
+    expect(refusesEmptyOverwrite(results, cacheOf(withItems(2)))).toBe(false);
+  });
+
+  it('allows a first run, when there is nothing on disk to lose', () => {
+    expect(refusesEmptyOverwrite([withItems(0)], new Map())).toBe(false);
+  });
+
+  it('allows an all-empty run over an all-empty file', () => {
+    expect(refusesEmptyOverwrite([withItems(0)], cacheOf(withItems(0)))).toBe(false);
+  });
+
+  it('tolerates records with no items key at all', () => {
+    expect(refusesEmptyOverwrite([{}], cacheOf({}))).toBe(false);
+    expect(refusesEmptyOverwrite([{}], cacheOf(withItems(1)))).toBe(true);
   });
 });

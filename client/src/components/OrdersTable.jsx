@@ -1,5 +1,6 @@
 import { useDataTable } from '../hooks/useDataTable.js';
 import DataTableControls from './DataTableControls.jsx';
+import Highlight from './Highlight.jsx';
 
 const HIDDEN_COLS = new Set(['ที่อยู่จัดส่ง', 'สั่งซื้ออีกครั้ง']);
 
@@ -62,7 +63,7 @@ export default function OrdersTable({ orders }) {
                     {k === 'ดูรายละเอียด' && safeHref(order[k]) ? (
                       <a href={safeHref(order[k])} target="_blank" rel="noreferrer">View ↗</a>
                     ) : (
-                      order[k]
+                      <Highlight text={order[k]} query={dt.search} />
                     )}
                   </td>
                 ))}

@@ -1,5 +1,6 @@
 import { useDataTable } from '../hooks/useDataTable.js';
 import DataTableControls from './DataTableControls.jsx';
+import Highlight from './Highlight.jsx';
 
 export default function OrderDetailsTable({ details }) {
   const dt = useDataTable(details, { defaultPageSize: 20 });
@@ -29,11 +30,13 @@ export default function OrderDetailsTable({ details }) {
       {dt.rows.map((order, i) => (
         <div key={i} className="order-card">
           <div className="order-card-header">
-            <span className="order-number">{order['หมายเลขคำสั่งซื้อ']}</span>
+            <span className="order-number">
+              <Highlight text={order['หมายเลขคำสั่งซื้อ']} query={dt.search} />
+            </span>
             <span className="order-date">{order['วันที่ซื้อ']}</span>
             <span className="order-price">{order['ราคาสุทธิ']}</span>
             {order['โค้ดส่วนลด'] && order['โค้ดส่วนลด'] !== '-' && (
-              <code>{order['โค้ดส่วนลด']}</code>
+              <code><Highlight text={order['โค้ดส่วนลด']} query={dt.search} /></code>
             )}
             <span className={`status-badge status-${order['สถานะ']}`}>{order['สถานะ']}</span>
           </div>
@@ -52,8 +55,8 @@ export default function OrderDetailsTable({ details }) {
               <tbody>
                 {order.items.map((item, j) => (
                   <tr key={j}>
-                    <td>{item.name}</td>
-                    <td>{item.sku}</td>
+                    <td><Highlight text={item.name} query={dt.search} /></td>
+                    <td><Highlight text={item.sku} query={dt.search} /></td>
                     <td>{item.quantity}</td>
                     <td>{item.price}</td>
                     <td>{item.subtotal}</td>

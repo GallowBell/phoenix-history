@@ -1,7 +1,8 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import { writeFile } from 'fs/promises';
+import { readFile, writeFile } from 'fs/promises';
 import config from './orders-config.js';
+import { SessionExpiredError, isRedirect, isLoginRedirect, NO_REDIRECT } from './session.js';
 
 const ORDER_NUMBER_KEY = 'หมายเลขคำสั่งซื้อ';
 
@@ -12,8 +13,7 @@ export function buildUrl(page) {
 async function fetchPage(page, headers) {
   const url = buildUrl(page);
   const response = await axios.get(url, {
-    maxRedirects: 0,
-    validateStatus: (status) => status < 400,
+    ...NO_REDIRECT,
     headers: {
       accept:
         'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
@@ -36,10 +36,12 @@ async function fetchPage(page, headers) {
     },
   });
 
-  // Server redirects when page is out of range
-  if (response.status >= 300 && response.status < 400) {
-    return null;
-  }
+  // Measured on the live site: a page past the last returns 200 and silently
+  // re-serves page 1 (caught below by the duplicate check) — it never 3xxs. A
+  // redirect to the login path is therefore an expired session on ANY page,
+  // and treating a later one as "past the last page" would truncate the file.
+  if (isLoginRedirect(response)) throw new SessionExpiredError(url);
+  if (isRedirect(response.status)) return null;
 
   const $ = cheerio.load(response.data);
   const table = $('#my-orders-table');
@@ -119,11 +121,38 @@ async function fetchOrders() {
   const json = JSON.stringify(allOrders, null, 2);
 
   if (config.outputFile) {
+    const existing = await countExisting(config.outputFile);
+    if (refusesEmptyOverwrite(allOrders.length, existing)) {
+      throw new Error(
+        `Scraped 0 orders but ${config.outputFile} already holds ${existing} — refusing to overwrite it.\n` +
+          '  The site returned no order table. That usually means the page layout changed,\n' +
+          '  or the session is no longer valid. Your existing data has been left alone.'
+      );
+    }
     await writeFile(config.outputFile, json, 'utf-8');
     console.log(`Wrote ${allOrders.length} orders to ${config.outputFile}`);
   } else {
     console.log(json);
   }
+}
+
+/** How many orders the previous run left on disk; 0 when there is no readable file. */
+export async function countExisting(path) {
+  try {
+    const previous = JSON.parse(await readFile(path, 'utf-8'));
+    return Array.isArray(previous) ? previous.length : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Guard against clobbering a good `orders.json` with an empty scrape. A run
+ * that finds nothing where there was previously something is a failure, not a
+ * legitimately empty history — and the whole pipeline downstream reads this file.
+ */
+export function refusesEmptyOverwrite(newCount, existingCount) {
+  return newCount === 0 && existingCount > 0;
 }
 
 export async function run() {

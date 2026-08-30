@@ -44,7 +44,37 @@ The hook is deliberately **never fatal on a missing cookie** — it warns and re
 
 The retry loop is `resolveSessionId({ ask, check })` with both injected, so it is unit-tested without a pty; `askOnce` wraps `rl.question` with a `close` listener because `readline/promises` leaves the promise pending forever on Ctrl-D.
 
-`ORDERS_COOKIE` is never parsed — `orders-config.js:8` reads it and both fetchers drop it verbatim into the `cookie:` header (`fetch-orders.js:22`, `fetch-order-details.js:11`). **`PHPSESSID` is the only cookie the site requires**, verified against the live site: with it alone both `/sales/order/history/` and `/sales/order/view/` return 200 and parse identically to the full browser cookie; without it (even with all 19 others) both return 302 to login. Everything else a browser sends — Google Analytics, TikTok, Hotjar, Klaviyo, Mixpanel, and Magento's `X-Magento-Vary` / `form_key` / `section_data_ids` — is ignored for these GETs. A silent 302 rendering as zero orders or empty `items[]` means `PHPSESSID` expired.
+`ORDERS_COOKIE` is never parsed — `orders-config.js:8` reads it and both fetchers drop it verbatim into the `cookie:` header (`fetch-orders.js:22`, `fetch-order-details.js:11`). **`PHPSESSID` is the only cookie the site requires**, verified against the live site: with it alone both `/sales/order/history/` and `/sales/order/view/` return 200 and parse identically to the full browser cookie; without it (even with all 19 others) both return 302 to login. Everything else a browser sends — Google Analytics, TikTok, Hotjar, Klaviyo, Mixpanel, and Magento's `X-Magento-Vary` / `form_key` / `section_data_ids` — is ignored for these GETs. A 302 rendering as zero orders or empty `items[]` means `PHPSESSID` expired. Both
+fetchers now detect this rather than letting it through: `src/session.js` holds
+`SessionExpiredError`, `isRedirect`, and the `NO_REDIRECT` axios options
+(`maxRedirects: 0` plus a `validateStatus` that admits 3xx so it can be
+inspected instead of thrown by axios). **Redirect-following must stay off in both
+fetchers** — with it on, the login page arrives as an ordinary 200 and cheerio
+just finds nothing.
+
+**Only a redirect to `/customer/account/login` counts as expiry** (`isLoginRedirect`),
+and it counts on any page. Measured against the live site:
+
+| Request | Result |
+|---|---|
+| valid `PHPSESSID` | 200 with the table |
+| invalid / absent `PHPSESSID` | 302 → `/customer/account/login/referer/<base64>` |
+| page past the last (`p=4`, `p=99` of 3) | **200 that silently re-serves page 1** — never a 3xx |
+| `order_id` that is not viewable | 302 → `/sales/order/history/` |
+
+Those last two rows are why the check is on the *target* and not on the status.
+Pagination never redirects, so a login redirect on page 5 is a session that died
+mid-scrape, not the end of the list — treating it as the end silently truncated
+`orders.json`. And a detail page bouncing to the history page is one unviewable
+order, not a dead cookie, so it fails that order alone instead of aborting the run.
+
+`fetch-order-details.js` sets an `expired` flag on the first login redirect, which
+makes `mapPool` skip the remaining orders, and then **throws before `writeFile`**.
+Both fetchers also carry an empty-overwrite backstop for the failure modes no
+redirect check can see (a 200 login page, stale cheerio selectors): `orders.json`
+is never replaced by a 0-order scrape, and `orders-details.json` is never replaced
+by a run where no order produced items. The details guard reads the previous file
+**even under `--force`**, since `--force` empties the cache but not the risk.
 
 ## Architecture
 
@@ -64,6 +94,20 @@ These are hardcoded as string literals in `src/sum-orders.js`, `src/export-excel
 
 `find-orders.js` is read-only and offline: it searches `ORDERS_DETAILS_FILE` and never imports `orders-config.js`, so it works without a cookie. Fields are declared in one `FIELDS` table marked `level: 'order'` or `level: 'item'`, which is what decides whether a match reports the whole order's items or just the matching ones; `ALIASES` maps ASCII names onto the Thai keys so they can be typed at a shell. It imports `parsePrice` from `sum-orders.js` rather than adding a fourth copy.
 
+Both the CLI and the UI highlight the matched substring — only in the field that
+was actually searched (`HIGHLIGHTS` in `find-orders.js` maps each field to the
+printed cells it may mark), so a mark always explains why a row matched. The two share a
+deliberate shape: `highlight(text, query, wrap)` in `find-orders.js` and
+`splitMatches(text, query)` in `client/src/components/Highlight.jsx` both escape
+the query before building a `RegExp` and both use the **function form** of
+`replace`/`exec`, so a query containing `$&` or `(` cannot corrupt the output.
+The CLI emits ANSI only when `colorEnabled()` says so (off when piped or under
+`NO_COLOR`, forced by `FORCE_COLOR`); the UI wraps matches in `<mark class="hl">`.
+`Highlight.jsx` never uses `dangerouslySetInnerHTML` — segments are rendered as
+React nodes, so scraped text stays inert. It also matches on the **raw** query,
+not a trimmed one, because `useDataTable` filters on the raw query; trimming only
+here would mark `set` on rows that were kept for `set `.
+
 ```
 fetch-orders  -> orders.json ------> sum-orders   (stdout)
                       |
@@ -74,9 +118,11 @@ fetch-orders  -> orders.json ------> sum-orders   (stdout)
 
 `fetch-order-details.js` re-reads `orders.json` and emits enriched copies of each row with `orderId` and an `items[]` array (`{name, sku, price, quantity, subtotal}`), so detail records are a superset of order records. It cannot run concurrently with `fetch-orders` — it consumes that command's output file.
 
+Progress lines are printed through `createOrderedLog()`, which parks each finished index until every earlier one has printed, so the log counts `[1/103]`, `[2/103]`… even though 4 workers finish out of order. It takes a print *function*, not a string, so each caller keeps its own stream; **every worker path must call `report(i, …)`**, passing `null` when it prints nothing — an index that never reports stalls the cursor and silences the rest of the run.
+
 Detail fetching runs through `mapPool(items, CONCURRENCY, worker)` at 4 in flight (measured: the site saturates there, 8 is no faster) and writes results back by index, so output order always matches `orders.json`. Before fetching, `isCacheable()` decides whether the previous `ORDERS_DETAILS_FILE` entry can be reused: only for a **terminal status** (`จัดส่งแล้ว`, `ออร์เดอร์ยกเลิก`) whose status is unchanged, with no recorded `error` and a non-empty `items[]` — so a failed or empty parse never gets frozen into the cache. Unrecognised statuses are always re-fetched. `--force` bypasses the cache entirely. Typical numbers on ~100 orders: 63s for a full re-fetch, ~8s when most orders are cached.
 
-**Scraper conventions.** Both fetchers send a full hardcoded Chrome header set plus the session cookie; `fetch-orders.js` uses `maxRedirects: 0` and treats a 3xx, a missing `#my-orders-table`, or a page whose first order number repeats page 1 as "past the last page". `fetch-order-details.js` sleeps 500ms between requests. Both parse with cheerio against site-specific class names — selector breakage is the expected failure mode when the site changes.
+**Scraper conventions.** Both fetchers send a full hardcoded Chrome header set plus the session cookie and both run with redirects disabled. `fetch-orders.js` treats a missing `#my-orders-table`, a page whose first order number repeats page 1, or a 3xx **on page >1** as "past the last page" — a 3xx on page 1 is an expired session instead (see Environment). `fetch-order-details.js` does not sleep between requests; it relies on `CONCURRENCY = 4` for pacing. Both parse with cheerio against site-specific class names — selector breakage is the expected failure mode when the site changes.
 
 **Server.** `server.js` exports the Express app and only calls `listen` when `NODE_ENV !== 'test'`, so tests drive it with supertest. It binds `127.0.0.1` only. Routes just read the JSON files and 404 with a message naming the npm script to run. `/api/excel/download` imports `generateBuffer` from `export-excel.js` lazily.
 

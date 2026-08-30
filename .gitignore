@@ -1,6 +1,5 @@
 .env
-orders.json
-orders-details.json
+/orders*.json
 *.xlsx
 node_modules/
 dist/
