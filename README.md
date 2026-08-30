@@ -158,6 +158,40 @@ Sums all `ราคาสุทธิ` values and prints the total to the termin
 npm run sum
 ```
 
+### Spend analysis
+
+Breaks the scraped data down by period and by series. Offline and read-only —
+it needs no cookie.
+
+```bash
+npm run stats
+npm run stats -- --top 20 --months 24   # longer lists
+npm run stats -- --all                  # no limits
+```
+
+It prints:
+
+| Section | What it shows |
+|---|---|
+| **Overall** | Orders, spend, and cancelled money noted separately |
+| **Spend by year** | One row per year, with a proportional bar |
+| **Spend by month** | Recent months; quiet months appear as `฿0.00` rather than being skipped |
+| **Top series by list price** | Which series cost the most, volumes collapsed together |
+| **List price vs paid** | Discounts and delivery fees, derived (see below) |
+| **Discount codes used** | Which codes you used, and on how much spend |
+
+Two honest caveats the report repeats on screen:
+
+- **Series figures are list prices.** A discount applies to the whole order, not
+  to one item, so per-series totals add up to more than you actually paid.
+- **The discount is derived, not scraped.** The site shows only item prices and
+  an order total, so the discount is the gap between them. That gap runs both
+  ways — on older, smaller orders it is a flat ฿35/฿50 delivery fee instead of a
+  discount, so the two are reported as separate lines rather than netted off.
+
+Series and discount figures need `orders-details.json`; run
+`npm run order-details` first, or the report says so and shows the rest.
+
 ### Export to Excel
 
 Generates a styled `.xlsx` file with a frozen header row, auto-filter, and a total row.
@@ -334,7 +368,8 @@ Starts only the Express API on `http://localhost:3001`.
 ```
 1. npm run orders          # scrape order list
 2. npm run order-details   # scrape item details for each order
-3. npm run excel           # (optional) export to .xlsx
+3. npm run stats           # (optional) spend by year, month and series
+4. npm run excel           # (optional) export to .xlsx
    — or —
    npm start               # browse in the web UI
 ```

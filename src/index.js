@@ -6,6 +6,7 @@ const COMMANDS = {
   sum: () => import('./sum-orders.js'),
   excel: () => import('./export-excel.js'),
   find: () => import('./find-orders.js'),
+  stats: () => import('./stats-orders.js'),
 };
 
 const command = process.argv[2];

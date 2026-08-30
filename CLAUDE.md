@@ -18,6 +18,7 @@ npm run order-details     # scrape items per order -> orders-details.json (needs
 npm run sum               # print total spend
 npm run excel             # write orders.xlsx
 npm run find [key] <value># search scraped data offline (default key: name)
+npm run stats             # spend by year/month, top series, discounts (offline)
 npm test                  # vitest run
 npm run test:watch
 npm run test:coverage     # v8 coverage over src/**, client/src/**, server.js
@@ -158,6 +159,26 @@ re-read order replaces its stored copy (that is how a status change lands) and
 the newest-first ordering survives the join. A merge can only grow the list;
 writing fewer orders than the file already held is refused, alongside the
 existing empty-scrape guard.
+
+**`npm run stats`** (`src/stats-orders.js`) is offline and read-only like
+`find-orders.js` — it must not import `orders-config.js`, since it needs no
+cookie. It reports spend by year and month, top series, discount codes, and the
+gap between list price and paid. Notes worth keeping:
+
+- Dates arrive as `"29/8/26 29 สิงหาคม 2026"`. Only the `d/m/yy` prefix is
+  parsed; the Thai half is redundant and would need a month-name table. It is
+  **day-first** (`29` cannot be a month) and years run 2019–2026, so `yy` maps
+  to `2000+yy`.
+- Series totals are **list prices** from item subtotals. An order-level discount
+  cannot be attributed to one item, so the report labels them rather than
+  silently apportioning.
+- The site exposes no discount line, so the discount is **derived** as
+  `sum(item subtotals) - net price`. That gap runs both ways: positive is a code
+  discount, negative is the flat ฿35/฿50 delivery fee on older small orders.
+  They are reported as separate figures because netting them off hides both.
+  Orders with no priced items are skipped and counted, never treated as 100% off.
+- Months with no orders are filled in as explicit zeroes (`fillMonths`); showing
+  only the months that had orders reads as a continuous run and hides the gaps.
 
 **Scraper conventions.** Both fetchers send a full hardcoded Chrome header set plus the session cookie and both run with redirects disabled. `fetch-orders.js` treats a missing `#my-orders-table`, a page whose first order number repeats page 1, or a 3xx **on page >1** as "past the last page" — a 3xx on page 1 is an expired session instead (see Environment). `fetch-order-details.js` does not sleep between requests; it relies on `CONCURRENCY = 4` for pacing. Both parse with cheerio against site-specific class names — selector breakage is the expected failure mode when the site changes.
 
