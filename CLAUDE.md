@@ -139,6 +139,29 @@ Detail fetching runs through `mapPool(items, CONCURRENCY, worker)` at 4 in fligh
 
 `safeHref` in `OrdersTable.jsx` gates scraped URLs to http/https before rendering them as links; keep it in front of any newly rendered scraped URL, since hrefs come from untrusted page content.
 
+**Product names are structured, and `src/product-name.js` is where that structure is decoded.** Item names follow a positional convention:
+
+```
+(PRE/MAY)(LN) Complete Set  ขอต้อนรับสู่ห้องเรียนนิยม (เฉพาะ) ยอดคน ปี 2  เล่ม 12.5
+\__________/\__/ \________/ \_________________________________________/  \________/
+ pre-order   kind    set                      series                        volume
+```
+
+`parseProductName()` splits those into `{preorder, preorderMonth, kind, set, series, volume, note}`, which is what the three facet selects on the Order Details tab are built from (`collectFacets`, `matchesFacets`). Like `orders-total.js`, it is **free of Node imports** so the browser bundle can import it.
+
+Rules worth keeping, each forced by real data:
+
+- **Everything is positional.** The set is only read directly after the tag run — `ครบ 1,000 บาท - Mini Clear Bookmark Set` is merchandise, not a `Bookmark Set` edition. `SET_TYPES` is ordered longest-first so `Short Story Set` wins over a suffix match.
+- **An unrecognised leading `(...)` stops the tag scan** rather than being stripped, because an unknown tag is more likely title text than metadata.
+- **The *last* `เล่ม N` wins** — a few titles carry a per-volume subtitle after it (`เล่ม 1 จอมมารผู้ไม่ยอมให้เคลียร์เกม`).
+- **`seriesKey()` folds the spellings the site uses for one series** — `★`/`☆`, `―`/`-`, `ปีสอง`/`ปี 2`, stray spaces and trailing `!`. Without it the same series splits into several options. The select shows whichever spelling is most common.
+- **Giveaways collapse into one `Free gift / goods` bucket.** `Free Gift - …` and `ครบ N บาท - …` are spend-threshold promos; parsed as series they contribute ~33 one-off options and swamp the list.
+- **The type tag is `(MG)` for manga, not `(มังงะ)`** — the Thai word never appears as a tag in the scraped data.
+
+Filtering is item-level: an order is kept when any of its items matches, and the card is then narrowed to just the matching items, the same rule `find-orders.js` applies to `level: 'item'` fields.
+
+`DataTableControls.jsx` takes two generic, optional props so both tables share one control bar: `filters` (selects) and `toggles` (checkboxes). Both default to `[]`, so a table that passes neither renders exactly as before. The **Exclude cancelled** toggle is on both tabs and reuses `isCancelled` from `orders-total.js` — the same rule as the header total and `npm run sum` — and is hidden entirely when the data holds no cancelled order. `Clear filters` appears when any select *or* toggle is set and resets all of them.
+
 ## Testing
 
 Vitest runs in the `node` environment by default. React/hook tests opt into jsdom with a docblock pragma on line 1:

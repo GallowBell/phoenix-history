@@ -187,7 +187,7 @@ tbody td a:hover { text-decoration: underline; }
   gap: 10px;
 }
 
-.dt-controls-left { display: flex; align-items: center; gap: 12px; }
+.dt-controls-left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .dt-controls-right { display: flex; align-items: center; gap: 12px; }
 
 .dt-search {
@@ -203,6 +203,48 @@ tbody td a:hover { text-decoration: underline; }
 .dt-search:focus { border-color: var(--accent-light); }
 
 .dt-count { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+/* Facet selects parsed out of the scraped product names */
+.dt-filter { display: flex; align-items: center; gap: 5px; }
+.dt-filter-label { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.dt-filter select {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 5px 6px;
+  font-size: 13px;
+  outline: none;
+  max-width: 240px;
+}
+.dt-filter select:focus { border-color: var(--accent-light); }
+
+.dt-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.dt-toggle:hover { color: var(--text); }
+.dt-toggle input { accent-color: var(--accent-light); cursor: pointer; margin: 0; }
+.dt-toggle-count { opacity: 0.7; }
+
+.dt-filter-clear {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  padding: 5px 9px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.1s, border-color 0.1s;
+}
+.dt-filter-clear:hover { color: var(--text); border-color: var(--accent-light); }
 
 .dt-page-size {
   color: var(--muted);
