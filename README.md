@@ -244,8 +244,45 @@ Open **http://localhost:5173** in your browser.
 
 - **Orders tab** — searchable, sortable table of all orders
 - **Order Details tab** — searchable cards showing items per order; search works inside product names and SKUs
+- **Filters** on the Order Details tab — three dropdowns built from the product names (see below)
+- **Exclude cancelled** checkbox on both tabs — hides cancelled orders (`ออร์เดอร์ยกเลิก`) from the list
 - **Total** displayed in the header
 - **Download Excel** button in the header
+
+### Filtering by series, type and set
+
+Product names on the site are decorated with tags, so filtering on the raw text
+would give you one option per volume:
+
+```
+(PRE/MAY)(LN) Complete Set ขอต้อนรับสู่ห้องเรียนนิยม (เฉพาะ) ยอดคน ปี 2 เล่ม 12.5
+```
+
+The Order Details tab strips that decoration and turns it into three dropdowns,
+each showing how many items it covers:
+
+| Filter | Options |
+|---|---|
+| **Series** | The title on its own, with every volume collapsed into one entry |
+| **Type** | Light Novel `(LN)`, Manga `(MG)`, Art Book `(AB)`, Free gift / goods, Untagged |
+| **Set** | Complete Set, Special Set, Short Story Set, Collection Box Set, Ultimate Set, No set |
+
+The three combine with AND. An order stays on screen if **any** of its items
+matches, and the card is narrowed to show only the matching items — so you can
+see at a glance why it is listed.
+
+Alongside them is an **Exclude cancelled** checkbox, which drops cancelled
+orders from the list — the same rule the header total and `npm run sum` already
+apply to your spend. It shows how many orders it would hide, and only appears
+when there is at least one cancelled order. It is also on the Orders tab.
+
+**Clear filters** resets all four, and appears only while something is set.
+
+A series is often spelled inconsistently between orders (`★` vs `☆`, `ปีสอง` vs
+`ปี 2`, a stray space); those are folded together into a single option, labelled
+with whichever spelling the site used most. Promotional giveaways (`Free Gift -
+…` and `ครบ N บาท - …`) are grouped under one **Free gift / goods** entry rather
+than appearing as dozens of one-off options.
 
 > The UI reads from the JSON files on disk. Run the CLI commands first to populate data before starting the UI.
 

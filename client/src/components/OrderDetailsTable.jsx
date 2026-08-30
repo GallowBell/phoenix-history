@@ -1,9 +1,67 @@
+import { useState, useMemo } from 'react';
 import { useDataTable } from '../hooks/useDataTable.js';
 import DataTableControls from './DataTableControls.jsx';
 import Highlight from './Highlight.jsx';
+import { collectFacets, matchesFacets, parseProductName } from '../../../src/product-name.js';
+import { isCancelled } from '../../../src/orders-total.js';
 
 export default function OrderDetailsTable({ details }) {
-  const dt = useDataTable(details, { defaultPageSize: 20 });
+  const [series, setSeries] = useState('');
+  const [kind, setKind] = useState('');
+  const [set, setSet] = useState('');
+  const [hideCancelled, setHideCancelled] = useState(false);
+
+  // Options come from the whole dataset, so the selects stay stable while
+  // choices are made instead of shrinking to whatever is currently on screen.
+  const facets = useMemo(() => collectFacets(details), [details]);
+
+  const active = Boolean(series || kind || set);
+
+  // A filtered order keeps only the items that matched, so the reason a card
+  // is on screen is visible in the card — the same rule `npm run find` uses
+  // for item-level fields.
+  const filtered = useMemo(() => {
+    const rows = hideCancelled ? details.filter((o) => !isCancelled(o)) : details;
+    if (!active) return rows;
+    const out = [];
+    for (const order of rows) {
+      const items = (order.items ?? []).filter((item) =>
+        matchesFacets(parseProductName(item?.name), { series, kind, set }));
+      if (items.length) out.push({ ...order, items });
+    }
+    return out;
+  }, [details, hideCancelled, active, series, kind, set]);
+
+  const cancelledCount = useMemo(() => details.filter(isCancelled).length, [details]);
+
+  const dt = useDataTable(filtered, { defaultPageSize: 20 });
+
+  const filters = [
+    { name: 'series', label: 'Series', value: series, options: facets.series,
+      allLabel: 'All series', onChange: (v) => { setSeries(v); dt.setPage(1); } },
+    { name: 'kind', label: 'Type', value: kind, options: facets.kinds,
+      allLabel: 'All types', onChange: (v) => { setKind(v); dt.setPage(1); } },
+    { name: 'set', label: 'Set', value: set, options: facets.sets,
+      allLabel: 'All sets', onChange: (v) => { setSet(v); dt.setPage(1); } },
+  ];
+
+  const toggles = cancelledCount
+    ? [{
+        name: 'hideCancelled',
+        label: 'Exclude cancelled',
+        count: cancelledCount,
+        checked: hideCancelled,
+        onChange: (v) => { setHideCancelled(v); dt.setPage(1); },
+      }]
+    : [];
+
+  function resetFilters() {
+    setSeries('');
+    setKind('');
+    setSet('');
+    setHideCancelled(false);
+    dt.setPage(1);
+  }
 
   if (!details.length) {
     return (
@@ -24,6 +82,9 @@ export default function OrderDetailsTable({ details }) {
         pageSize={dt.pageSize}
         onPage={dt.setPage}
         onPageSize={dt.setPageSize}
+        filters={filters}
+        toggles={toggles}
+        onResetFilters={resetFilters}
       />
       <div className="details-list">
       {dt.rows.length === 0 && <p className="status">No results</p>}
@@ -65,7 +126,11 @@ export default function OrderDetailsTable({ details }) {
               </tbody>
             </table>
           ) : (
-            <p className="no-items">No item details — run npm run order-details to fetch.</p>
+            <p className="no-items">
+              {active
+                ? 'No matching items in this order.'
+                : 'No item details — run npm run order-details to fetch.'}
+            </p>
           )}
         </div>
       ))}
