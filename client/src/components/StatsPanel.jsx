@@ -23,7 +23,7 @@ export default function StatsPanel({ orders = [], details = [] }) {
   if (!orders.length) {
     return (
       <p className="status">
-        No orders on disk — run <code>npm run orders</code> first.
+        No orders on disk. Press <strong>Sync</strong> above, or run <code>npm run orders</code>.
       </p>
     );
   }
@@ -66,8 +66,8 @@ export default function StatsPanel({ orders = [], details = [] }) {
 
       {details.length === 0 ? (
         <p className="stats-empty">
-          No order details on disk — run <code>npm run order-details</code> for series and
-          discount figures.
+          No order details on disk. Press <strong>Sync</strong> above, or run
+          <code>npm run order-details</code>, for series and discount figures.
         </p>
       ) : (
         <>

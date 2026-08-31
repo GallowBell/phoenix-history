@@ -199,6 +199,23 @@ Two honest caveats the report repeats on screen:
 Series and discount figures need `orders-details.json`; run
 `npm run order-details` first, or the report says so and shows the rest.
 
+### Sync from the browser
+
+`npm start` puts a **Sync** button in the header, so a refresh does not need a
+terminal. It runs the order list and then the order details — in that order,
+since the second reads what the first writes — and streams their progress.
+
+- **Full re-scrape** ticks `--force` onto both, ignoring the incremental stop
+  and the details cache.
+- **Cancel** is safe: both scrapers write their file once, at the very end, so
+  stopping early leaves your existing data untouched.
+- When your `PHPSESSID` expires, the button asks for a new one inline, checks it
+  against the site, saves it to `.env`, and picks the sync up where it stopped —
+  the same validate-and-save the terminal prompt does. The server only listens
+  on `127.0.0.1`.
+- Beside the button, `103 orders · 2h ago` says what is on disk and when it was
+  last written.
+
 ### Export to Excel
 
 Generates a styled `.xlsx` file with a frozen header row, auto-filter, and a total row.

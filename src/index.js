@@ -1,4 +1,4 @@
-import { SessionExpiredError } from './session.js';
+import { SessionExpiredError, exitCodeFor } from './session.js';
 
 const COMMANDS = {
   orders: () => import('./fetch-orders.js'),
@@ -60,5 +60,7 @@ async function runWithCookieRetry() {
 
 await runWithCookieRetry().catch((err) => {
   console.error(`Error: ${err.message}`);
-  process.exit(1);
+  // Exit 2 for an expired session, so `sync-job.js` can offer the cookie
+  // prompt in the UI instead of reporting a generic failure.
+  process.exit(exitCodeFor(err));
 });

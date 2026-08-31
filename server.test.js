@@ -5,6 +5,7 @@ import detailsFixture from './tests/fixtures/orders-details-sample.json' with { 
 
 vi.mock('fs/promises', () => ({
   readFile: vi.fn(),
+  stat: vi.fn(),
 }));
 
 vi.mock('./src/export-excel.js', () => ({

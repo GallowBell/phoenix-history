@@ -200,6 +200,23 @@ export function askOnce(rl, prompt) {
  * when a command stops on an expired one, so both paths look identical to the
  * user and there is one place that writes the file.
  */
+/**
+ * Write a validated session id to .env. The single writer of that file — the
+ * CLI prompt and the web UI's session route both come through here, so the
+ * upsert rules (quoting, CRLF, leaving every other line alone) live in one
+ * place.
+ */
+export async function saveSessionId(sessionId) {
+  const envText = await readEnv();
+  await writeFile(ENV_PATH, upsertCookie(envText, sessionId), 'utf-8');
+  return ENV_PATH;
+}
+
+/** The order-history URL from .env, for validating a session id against. */
+export async function historyUrl() {
+  return urlFrom(await readEnv());
+}
+
 export async function promptForCookie({
   heading = 'No session cookie found in .env.',
 } = {}) {
@@ -232,7 +249,7 @@ export async function promptForCookie({
 
   if (!resolved) return null;
 
-  await writeFile(ENV_PATH, upsertCookie(envText, resolved.sessionId), 'utf-8');
+  await saveSessionId(resolved.sessionId);
   console.log(`ok — ${resolved.rows} orders visible`);
   console.log(`  Saved to ${ENV_PATH}\n`);
   return resolved.sessionId;

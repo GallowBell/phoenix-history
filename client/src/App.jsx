@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import OrdersTable from './components/OrdersTable.jsx';
 import OrderDetailsTable from './components/OrderDetailsTable.jsx';
 import StatsPanel from './components/StatsPanel.jsx';
+import SyncButton from './components/SyncButton.jsx';
 import { summarise, formatBaht } from '../../src/orders-total.js';
 
 export default function App() {
@@ -11,27 +12,28 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [ordersRes, detailsRes] = await Promise.allSettled([
-          fetch('/api/orders').then((r) => r.json()),
-          fetch('/api/order-details').then((r) => r.json()),
-        ]);
-        if (ordersRes.status === 'fulfilled' && Array.isArray(ordersRes.value)) {
-          setOrders(ordersRes.value);
-        }
-        if (detailsRes.status === 'fulfilled' && Array.isArray(detailsRes.value)) {
-          setDetails(detailsRes.value);
-        }
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
+  // Named and reusable so the Sync button can pull the new data in place
+  // rather than forcing a reload, which would drop the tab and its filters.
+  const loadData = useCallback(async () => {
+    try {
+      const [ordersRes, detailsRes] = await Promise.allSettled([
+        fetch('/api/orders').then((r) => r.json()),
+        fetch('/api/order-details').then((r) => r.json()),
+      ]);
+      if (ordersRes.status === 'fulfilled' && Array.isArray(ordersRes.value)) {
+        setOrders(ordersRes.value);
       }
-    };
-    fetchData();
+      if (detailsRes.status === 'fulfilled' && Array.isArray(detailsRes.value)) {
+        setDetails(detailsRes.value);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
 
   // Same rule as `npm run sum` and the Excel export: cancelled orders are
   // not money spent. They are shown beside the total rather than folded in.
@@ -55,6 +57,7 @@ export default function App() {
               )}
             </span>
           )}
+          <SyncButton onSynced={loadData} />
           <a href="/api/excel/download" className="btn-excel" download>
             ⬇ Download Excel
           </a>

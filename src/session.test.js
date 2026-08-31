@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   SessionExpiredError,
+  exitCodeFor,
+  EXIT_SESSION_EXPIRED,
   isRedirect,
   isLoginRedirect,
   redirectTarget,
@@ -106,5 +108,17 @@ describe('NO_REDIRECT', () => {
   it('still lets genuine 4xx/5xx failures throw', () => {
     expect(NO_REDIRECT.validateStatus(404)).toBe(false);
     expect(NO_REDIRECT.validateStatus(500)).toBe(false);
+  });
+});
+
+describe('exitCodeFor', () => {
+  it('reserves 2 for an expired session so a non-TTY caller can tell them apart', () => {
+    expect(exitCodeFor(new SessionExpiredError('https://example.com'))).toBe(EXIT_SESSION_EXPIRED);
+    expect(EXIT_SESSION_EXPIRED).toBe(2);
+  });
+
+  it('uses 1 for every other failure', () => {
+    expect(exitCodeFor(new Error('network down'))).toBe(1);
+    expect(exitCodeFor(new TypeError('bad selector'))).toBe(1);
   });
 });

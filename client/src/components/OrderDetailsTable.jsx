@@ -66,7 +66,7 @@ export default function OrderDetailsTable({ details }) {
   if (!details.length) {
     return (
       <p className="status">
-        No order details found. Run <code>npm run order-details</code> first.
+        No order details yet. Press <strong>Sync</strong> above, or run <code>npm run order-details</code>.
       </p>
     );
   }
