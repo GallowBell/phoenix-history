@@ -103,6 +103,35 @@ describe('createSyncJob', () => {
     expect(seen).toEqual([]);
   });
 
+  it('reports a terminal status exactly once, even when the spawn itself fails', async () => {
+    // A failed spawn emits both 'error' and 'close'; without a guard the job
+    // settles twice and subscribers see two terminal events for one run.
+    const job = makeJob({ node: '/nonexistent/binary' });
+    const terminal = [];
+    job.subscribe((e) => { if (e.type === 'status' && e.status !== 'running') terminal.push(e.status); });
+    job.start('ok');
+    const final = await job.finished();
+    expect(final.status).toBe('failed');
+    // finished() resolves on the first settle; the duplicate arrives with the
+    // 'close' event just after, so the assertion has to outlive it.
+    await new Promise((r) => setTimeout(r, 200));
+    expect(terminal).toEqual(['failed']);
+  });
+
+  it('gives up on a child that never exits, instead of blocking every later sync', async () => {
+    // Without this a hung request leaves the job 'running' for ever and every
+    // subsequent start answers 409 with no way back but restarting the server.
+    const job = makeJob({ timeoutMs: 300 });
+    job.start('slow');
+    const final = await job.finished();
+    expect(final.status).toBe('failed');
+    expect(final.lines.join(' ')).toMatch(/timed out/i);
+    // And it is no longer wedged: a fresh start is accepted, not 409'd.
+    expect(() => job.start('slow')).not.toThrow();
+    job.cancel();
+    await job.finished();
+  });
+
   it('can run again after finishing', async () => {
     const job = makeJob();
     job.start('ok');

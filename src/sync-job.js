@@ -48,12 +48,19 @@ export function createSyncJob({
   cwd = ROOT,
   commands = SYNC_COMMANDS,
   maxLines = 500,
+  // A full re-scrape of ~100 orders takes about 90s. Ten minutes is generous
+  // for the slowest real run and still bounded: without a ceiling, one child
+  // that never returns leaves the job 'running' and answers 409 to every
+  // later sync until the server is restarted.
+  timeoutMs = 10 * 60 * 1000,
 } = {}) {
   let state = { id: 0, command: null, status: 'idle', startedAt: null, endedAt: null, exitCode: null, lines: [] };
   let child = null;
   let cancelled = false;
   let settle = null;
   let pending = null;
+  let settled = true;
+  let timer = null;
   const listeners = new Set();
 
   const emit = (event) => {
@@ -88,6 +95,12 @@ export function createSyncJob({
   };
 
   const finish = (status, exitCode) => {
+    // A failed spawn emits 'error' *and* 'close'; without this a single run
+    // would report a terminal status twice.
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    timer = null;
     state.status = status;
     state.exitCode = exitCode;
     state.endedAt = Date.now();
@@ -117,6 +130,7 @@ export function createSyncJob({
       if (state.status === 'running') throw new JobBusyError(state.command);
 
       cancelled = false;
+      settled = false;
       state = {
         id: state.id + 1,
         command,
@@ -156,6 +170,16 @@ export function createSyncJob({
         if (code === EXPIRED_EXIT) return finish('expired', code);
         finish('failed', code);
       });
+
+      if (timeoutMs > 0) {
+        timer = setTimeout(() => {
+          if (settled) return;
+          pushLine(`Sync timed out after ${Math.round(timeoutMs / 1000)}s — stopping it.`);
+          child?.kill('SIGTERM');
+          finish('failed', null);
+        }, timeoutMs);
+        timer.unref?.();
+      }
 
       emit({ type: 'status', status: 'running', command, id: state.id });
       return snapshot();

@@ -45,6 +45,12 @@ export default function SyncButton({ onSynced }) {
   const resumeAt = useRef(0);
   const endWaiter = useRef(null);
 
+  const resolveEnd = (status) => {
+    const done = endWaiter.current;
+    endWaiter.current = null;
+    done?.(status);
+  };
+
   const refreshDisk = useCallback(async () => {
     try {
       const response = await fetch('/api/data-status');
@@ -73,16 +79,16 @@ export default function SyncButton({ onSynced }) {
         setStatus(event.status);
         setCommand(event.command ?? null);
         setLines((event.lines ?? []).slice(-MAX_LINES));
+        // EventSource reconnects on its own. If the run ended while the
+        // connection was down, this replay is the only notice we get — without
+        // it the button says "Syncing…" for ever.
+        if (event.status !== 'running') resolveEnd(event.status);
         return;
       }
       if (event.type === 'status') {
         setStatus(event.status);
         if (event.command) setCommand(event.command);
-        if (event.status !== 'running') {
-          const done = endWaiter.current;
-          endWaiter.current = null;
-          done?.(event.status);
-        }
+        if (event.status !== 'running') resolveEnd(event.status);
       }
     };
     return () => source.close();
@@ -90,6 +96,18 @@ export default function SyncButton({ onSynced }) {
 
   const runFrom = useCallback(async (startIndex) => {
     setError(null);
+    try {
+      await runSequence(startIndex);
+    } catch (err) {
+      // A dead or restarting server rejects the fetch; without this the button
+      // stays disabled on "Syncing…" with nothing said.
+      endWaiter.current = null;
+      setStatus('idle');
+      setError(`Could not reach the server: ${err.message}`);
+    }
+  }, [force, onSynced, refreshDisk]);
+
+  const runSequence = async (startIndex) => {
     for (let i = startIndex; i < SEQUENCE.length; i++) {
       const name = SEQUENCE[i];
       resumeAt.current = i;
@@ -119,7 +137,7 @@ export default function SyncButton({ onSynced }) {
     }
     await onSynced?.();
     await refreshDisk();
-  }, [force, onSynced, refreshDisk]);
+  };
 
   const saveCookie = async () => {
     setSaving(true);
@@ -138,6 +156,8 @@ export default function SyncButton({ onSynced }) {
       setSessionId('');
       setStatus('idle');
       await runFrom(resumeAt.current);
+    } catch (err) {
+      setError(`Could not reach the server: ${err.message}`);
     } finally {
       setSaving(false);
     }

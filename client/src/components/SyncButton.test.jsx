@@ -156,6 +156,28 @@ describe('SyncButton', () => {
     await waitFor(() => expect(screen.getByText(/103 orders/)).toBeTruthy());
   });
 
+  it('recovers when the stream reconnects after the job already ended', async () => {
+    // EventSource reconnects on its own. If the terminal status arrived while
+    // the connection was down, only the replayed snapshot can unstick the UI —
+    // otherwise the button says "Syncing…" for ever.
+    render(<SyncButton />);
+    fireEvent.click(syncBtn());
+    await waitFor(() => expect(syncCalls()).toHaveLength(1));
+
+    lastSocket().emit({ type: 'snapshot', status: 'done', command: 'orders', lines: [] });
+
+    await waitFor(() =>
+      expect(global.fetch).toHaveBeenCalledWith('/api/sync/order-details', { method: 'POST' }));
+  });
+
+  it('surfaces a dead server instead of hanging on "Syncing…"', async () => {
+    global.fetch = vi.fn(async () => { throw new TypeError('Failed to fetch'); });
+    render(<SyncButton />);
+    fireEvent.click(syncBtn());
+    await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
+    expect(syncBtn().disabled).toBe(false);
+  });
+
   it('closes the event stream when unmounted', () => {
     const { unmount } = render(<SyncButton />);
     const socket = lastSocket();

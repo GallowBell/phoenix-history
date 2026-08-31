@@ -225,6 +225,15 @@ already in the pipeline rather than reimplementing them behind a route.
   It signals the child, not the process group — under `npm start` the scraper is
   a grandchild of `concurrently`, and killing the group would take the dev
   server with it.
+- **A job cannot outlive its timeout** (10 minutes). Without a ceiling one
+  child that never returns leaves the job `running` and answers 409 to every
+  later sync until the server restarts. `finish()` also settles exactly once —
+  a failed spawn emits both `error` and `close`, which otherwise reported one
+  run as two terminal events.
+- **The client resolves its wait from a replayed snapshot too.** EventSource
+  reconnects on its own; if the run ended while the connection was down, that
+  replay is the only notice the UI gets, and without handling it the button
+  says "Syncing…" for ever.
 - **`src/index.js` exits 2 for `SessionExpiredError`** (`exitCodeFor` in
   `session.js`). The child has no TTY so it already skips the CLI prompt and
   rethrows; the distinct code lets `sync-job.js` offer the cookie form instead

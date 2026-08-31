@@ -66,11 +66,29 @@ app.get('/api/sync/stream', (req, res) => {
     Connection: 'keep-alive',
     'X-Accel-Buffering': 'no',
   });
-  const send = (event) => res.write(`data: ${JSON.stringify(event)}\n\n`);
+  // Writing to a socket the client has already dropped raises on the response
+  // and would take the API server down with it.
+  const send = (event) => {
+    if (res.writableEnded || res.destroyed) return;
+    try {
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    } catch {
+      off?.();
+      clearInterval(ping);
+    }
+  };
   // A page opened mid-run needs the lines it missed before the live ones.
   send({ type: 'snapshot', ...syncJob.getStatus() });
-  const off = syncJob.subscribe(send);
-  const ping = setInterval(() => res.write(': ping\n\n'), 15000);
+  let off;
+  const ping = setInterval(() => {
+    if (res.writableEnded || res.destroyed) return clearInterval(ping);
+    try {
+      res.write(': ping\n\n');
+    } catch {
+      clearInterval(ping);
+    }
+  }, 15000);
+  off = syncJob.subscribe(send);
   req.on('close', () => {
     off();
     clearInterval(ping);
