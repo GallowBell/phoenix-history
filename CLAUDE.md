@@ -160,10 +160,28 @@ the newest-first ordering survives the join. A merge can only grow the list;
 writing fewer orders than the file already held is refused, alongside the
 existing empty-scrape guard.
 
-**`npm run stats`** (`src/stats-orders.js`) is offline and read-only like
-`find-orders.js` — it must not import `orders-config.js`, since it needs no
-cookie. It reports spend by year and month, top series, discount codes, and the
-gap between list price and paid. Notes worth keeping:
+**`npm run stats`** is offline and read-only like `find-orders.js` — it must not
+import `orders-config.js`, since it needs no cookie. It reports spend by year and
+month, top series, discount codes, and the gap between list price and paid.
+
+It is **split across two modules**, and the split is what keeps the CLI and the
+UI from disagreeing:
+
+- `src/stats-report.js` computes the figures (`groupSpend`, `fillMonths`,
+  `seriesSpend`, `priceGap`, `discountCodes`, `parseOrderDate`). Like
+  `orders-total.js` and `product-name.js` it is **free of Node imports**, so the
+  browser bundle can import it.
+- `src/stats-orders.js` is the CLI half: `readJson`, `parseArgs`, `run`, and the
+  fixed-width text renderer `report()`/`bar()`. It re-exports everything it
+  moved, so importers and `stats-orders.test.js` still reach for it here.
+
+The Stats tab (`client/src/components/StatsPanel.jsx`) is the second renderer
+over the same figures. A stray Node import in `stats-report.js` would break the
+Vite bundle while every Node-run test stayed green — the same failure shape that
+once broke `npm run excel` — so `StatsPanel.test.jsx` asserts statically that the
+module imports nothing but relative paths.
+
+Notes worth keeping:
 
 - Dates arrive as `"29/8/26 29 สิงหาคม 2026"`. Only the `d/m/yy` prefix is
   parsed; the Thai half is redundant and would need a month-name table. It is
@@ -172,6 +190,11 @@ gap between list price and paid. Notes worth keeping:
 - Series totals are **list prices** from item subtotals. An order-level discount
   cannot be attributed to one item, so the report labels them rather than
   silently apportioning.
+- **Discount codes are reported by order count, never by money.** An order row
+  carries `โค้ดส่วนลด` and `ราคาสุทธิ` and no discount amount, so the only money
+  `discountCodes()` could report is the net spend on the orders that used a
+  code — which reads as "saved with this code" and is a different, much larger
+  number. `StatsPanel.test.jsx` guards the column list so it cannot creep back.
 - The site exposes no discount line, so the discount is **derived** as
   `sum(item subtotals) - net price`. That gap runs both ways: positive is a code
   discount, negative is the flat ฿35/฿50 delivery fee on older small orders.
@@ -185,6 +208,16 @@ gap between list price and paid. Notes worth keeping:
 **Server.** `server.js` exports the Express app and only calls `listen` when `NODE_ENV !== 'test'`, so tests drive it with supertest. It binds `127.0.0.1` only. Routes just read the JSON files and 404 with a message naming the npm script to run. `/api/excel/download` imports `generateBuffer` from `export-excel.js` lazily.
 
 **Client.** Vite's root is `client/` and its config lives at `client/vite.config.js`, so it must be started with `--config client/vite.config.js` (the npm scripts do this). The dev server proxies `/api` to `:3001`. `useDataTable.js` is the shared search/sort/pagination hook — search recurses into nested arrays and objects so a query matches SKUs inside `items[]`, and sorting tries a `฿`/comma-stripped numeric compare before falling back to `localeCompare(…, 'th')`.
+
+The third tab, **Stats**, renders the `npm run stats` figures rather than
+printing them. It takes `orders` and `details` as props — App.jsx already holds
+both — so there is **no `/api/stats` route and no second fetch**, and the tab
+agrees with the header total by construction. It caps at 10 series / 12 months
+like the CLI, with a `Show all` toggle per capped section so the UI is not weaker
+than `--all`. Bars are CSS divs scaled against the largest value in their own
+table; the month section additionally draws every month since the first order as
+one strip, which is what makes `fillMonths`' zero-filled quiet months legible as
+gaps rather than as a list of dashes.
 
 `safeHref` in `OrdersTable.jsx` gates scraped URLs to http/https before rendering them as links; keep it in front of any newly rendered scraped URL, since hrefs come from untrusted page content.
 

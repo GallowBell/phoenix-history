@@ -157,7 +157,9 @@ describe('discountCodes', () => {
       order('4/1/25', '฿10.00', DELIVERED_STATUS, ''),
       order('5/1/25', '฿999.00', CANCELLED_STATUS, 'LV999'),
     ]);
-    expect(out).toEqual([{ code: 'LV999', orders: 2, spent: 150 }]);
+    // Order count only: the site returns no discount amount, so any money
+    // figure here would be the spend on those orders, not the saving.
+    expect(out).toEqual([{ code: 'LV999', orders: 2 }]);
   });
 });
 
