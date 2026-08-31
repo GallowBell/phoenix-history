@@ -18,6 +18,7 @@ npm run order-details     # scrape items per order -> orders-details.json (needs
 npm run sum               # print total spend
 npm run excel             # write orders.xlsx
 npm run find [key] <value># search scraped data offline (default key: name)
+npm run stats             # spend by year/month, top series, discounts (offline)
 npm test                  # vitest run
 npm run test:watch
 npm run test:coverage     # v8 coverage over src/**, client/src/**, server.js
@@ -130,6 +131,54 @@ fetch-orders  -> orders.json ------> sum-orders   (stdout)
 Progress lines are printed through `createOrderedLog()`, which parks each finished index until every earlier one has printed, so the log counts `[1/103]`, `[2/103]`… even though 4 workers finish out of order. It takes a print *function*, not a string, so each caller keeps its own stream; **every worker path must call `report(i, …)`**, passing `null` when it prints nothing — an index that never reports stalls the cursor and silences the rest of the run.
 
 Detail fetching runs through `mapPool(items, CONCURRENCY, worker)` at 4 in flight (measured: the site saturates there, 8 is no faster) and writes results back by index, so output order always matches `orders.json`. Before fetching, `isCacheable()` decides whether the previous `ORDERS_DETAILS_FILE` entry can be reused: only for a **terminal status** (`จัดส่งแล้ว`, `ออร์เดอร์ยกเลิก`) whose status is unchanged, with no recorded `error` and a non-empty `items[]` — so a failed or empty parse never gets frozen into the cache. Unrecognised statuses are always re-fetched. `--force` bypasses the cache entirely. Typical numbers on ~100 orders: 63s for a full re-fetch, ~8s when most orders are cached.
+
+**The order list scrape is incremental.** `fetch-orders.js` reads the existing
+`orders.json` first and stops paging at the first order number it already has —
+the history is newest-first and append-only, so a familiar order means
+everything below it is on disk. On ~100 orders that is 1 page fetched instead
+of 4. `--force` re-crawls everything.
+
+Two rules keep that from going stale, both in `canStopEarly` / `pendingNumbers`:
+
+- **One known order on a page is enough to stop.** Requiring the whole page to
+  be known costs an extra fetch whenever new and old orders share a page, which
+  is the usual case.
+- **Except while a known order is still in progress.** A
+  `กำลังเตรียมสินค้า` order will later become `จัดส่งแล้ว`; stopping above it
+  would freeze that status forever. Paging continues until every non-terminal
+  order on disk has been re-read — cheap in practice, since pending orders are
+  the newest.
+
+`TERMINAL_STATUSES` / `isTerminal()` moved into `orders-total.js`, which already
+owned `STATUS_KEY` and `CANCELLED_STATUS`; `fetch-order-details.js` had a
+private duplicate and now imports it. An unrecognised status counts as still
+moving, so a status the site adds later is re-fetched rather than frozen.
+
+`mergeOrders()` puts the scraped run on top of whatever was not re-read, so a
+re-read order replaces its stored copy (that is how a status change lands) and
+the newest-first ordering survives the join. A merge can only grow the list;
+writing fewer orders than the file already held is refused, alongside the
+existing empty-scrape guard.
+
+**`npm run stats`** (`src/stats-orders.js`) is offline and read-only like
+`find-orders.js` — it must not import `orders-config.js`, since it needs no
+cookie. It reports spend by year and month, top series, discount codes, and the
+gap between list price and paid. Notes worth keeping:
+
+- Dates arrive as `"29/8/26 29 สิงหาคม 2026"`. Only the `d/m/yy` prefix is
+  parsed; the Thai half is redundant and would need a month-name table. It is
+  **day-first** (`29` cannot be a month) and years run 2019–2026, so `yy` maps
+  to `2000+yy`.
+- Series totals are **list prices** from item subtotals. An order-level discount
+  cannot be attributed to one item, so the report labels them rather than
+  silently apportioning.
+- The site exposes no discount line, so the discount is **derived** as
+  `sum(item subtotals) - net price`. That gap runs both ways: positive is a code
+  discount, negative is the flat ฿35/฿50 delivery fee on older small orders.
+  They are reported as separate figures because netting them off hides both.
+  Orders with no priced items are skipped and counted, never treated as 100% off.
+- Months with no orders are filled in as explicit zeroes (`fillMonths`); showing
+  only the months that had orders reads as a continuous run and hides the gaps.
 
 **Scraper conventions.** Both fetchers send a full hardcoded Chrome header set plus the session cookie and both run with redirects disabled. `fetch-orders.js` treats a missing `#my-orders-table`, a page whose first order number repeats page 1, or a 3xx **on page >1** as "past the last page" — a 3xx on page 1 is an expired session instead (see Environment). `fetch-order-details.js` does not sleep between requests; it relies on `CONCURRENCY = 4` for pacing. Both parse with cheerio against site-specific class names — selector breakage is the expected failure mode when the site changes.
 

@@ -24,8 +24,23 @@ export function parsePrice(raw) {
   return isNaN(value) ? null : value;
 }
 
+export const DELIVERED_STATUS = 'จัดส่งแล้ว';
+
+/**
+ * Statuses that will never change again. Both scrapers lean on this: the
+ * detail cache only reuses a terminal order (`isCacheable`), and the
+ * incremental order scrape only stops early once every known order it has
+ * reached is terminal. An unrecognised status is treated as still moving, so
+ * a new status the site introduces is re-fetched rather than frozen.
+ */
+export const TERMINAL_STATUSES = new Set([DELIVERED_STATUS, CANCELLED_STATUS]);
+
 export function isCancelled(order) {
   return order?.[STATUS_KEY] === CANCELLED_STATUS;
+}
+
+export function isTerminal(order) {
+  return TERMINAL_STATUSES.has(order?.[STATUS_KEY]);
 }
 
 /**
