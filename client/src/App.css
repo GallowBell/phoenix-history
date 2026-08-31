@@ -487,3 +487,74 @@ mark.hl {
 @media (prefers-reduced-motion: reduce) {
   .stats-bar-fill { transition: none; }
 }
+
+/* ── Sync ────────────────────────────────────────── */
+/* Runs the same CLI the terminal does; see src/sync-job.js. */
+.sync { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.btn-sync {
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-sync:hover:not(:disabled) { background: var(--accent-light); }
+.btn-sync:disabled { opacity: 0.6; cursor: default; }
+.btn-sync:focus-visible { outline: 2px solid var(--accent-light); outline-offset: 2px; }
+
+.sync-force {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.sync-force:hover { color: var(--text); }
+.sync-force input { accent-color: var(--accent-light); cursor: pointer; margin: 0; }
+
+.sync-cancel {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  padding: 5px 9px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.sync-cancel:hover { color: var(--text); border-color: var(--accent-light); }
+
+.sync-age { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+/* The newest progress line; the rest are in the title attribute */
+.sync-line {
+  color: var(--muted);
+  font-size: 12px;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-error { color: #e57373; font-size: 12px; max-width: 340px; }
+
+/* An expired PHPSESSID is the everyday case, so it gets a form, not an error */
+.sync-cookie { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sync-cookie-label { color: #e57373; font-size: 12px; white-space: nowrap; }
+.sync-cookie-input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  padding: 5px 8px;
+  font-size: 13px;
+  width: 230px;
+  outline: none;
+}
+.sync-cookie-input:focus { border-color: var(--accent-light); }

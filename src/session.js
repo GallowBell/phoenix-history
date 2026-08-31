@@ -69,6 +69,20 @@ export const NO_REDIRECT = {
   validateStatus: (status) => status < 400,
 };
 
+/**
+ * Process exit code for a failed command.
+ *
+ * `2` is reserved for an expired session so a caller that is not a terminal —
+ * `sync-job.js`, spawning this CLI for the web UI — can tell "your cookie
+ * died, here is a prompt" apart from "something broke" without matching on
+ * message text.
+ */
+export const EXIT_SESSION_EXPIRED = 2;
+
+export function exitCodeFor(err) {
+  return err instanceof SessionExpiredError ? EXIT_SESSION_EXPIRED : 1;
+}
+
 /** Throw if `response` is the login redirect. Any other status passes through. */
 export function assertSession(response, url) {
   if (isLoginRedirect(response)) throw new SessionExpiredError(url);

@@ -207,6 +207,38 @@ Notes worth keeping:
 
 **Server.** `server.js` exports the Express app and only calls `listen` when `NODE_ENV !== 'test'`, so tests drive it with supertest. It binds `127.0.0.1` only. Routes just read the JSON files and 404 with a message naming the npm script to run. `/api/excel/download` imports `generateBuffer` from `export-excel.js` lazily.
 
+**Sync from the UI.** The Sync button runs the scrape without a terminal. The
+rule that shapes the whole design: **`server.js` must never import the
+fetchers.** `orders-config.js` calls `process.exit(1)` at *import* time when the
+cookie is missing, and `npm start` is deliberately usable without one — an
+in-process sync would take the API down for exactly those users. So
+`src/sync-job.js` spawns the same CLI `npm run orders` runs
+(`node --env-file=.env src/index.js <command>`), which also inherits every guard
+already in the pipeline rather than reimplementing them behind a route.
+
+- **One job at a time.** A second start returns 409, which is what enforces the
+  rule that `fetch-order-details` cannot run while `fetch-orders` is writing the
+  file it consumes. The UI runs the two in sequence and stops if the first does
+  not finish `done`.
+- **Cancel is safe by construction.** Both fetchers build their result in memory
+  and `writeFile` once at the end, so SIGTERM before that leaves the JSON alone.
+  It signals the child, not the process group — under `npm start` the scraper is
+  a grandchild of `concurrently`, and killing the group would take the dev
+  server with it.
+- **`src/index.js` exits 2 for `SessionExpiredError`** (`exitCodeFor` in
+  `session.js`). The child has no TTY so it already skips the CLI prompt and
+  rethrows; the distinct code lets `sync-job.js` offer the cookie form instead
+  of a generic failure, without matching on message text.
+- **`POST /api/session`** takes a pasted PHPSESSID, checks it with `validate()`
+  and writes it with `saveSessionId()` — the same writer `promptForCookie` uses,
+  so the upsert rules live in one place. `express.json()` is mounted on that
+  route alone. The value is never logged and never echoed back. It travels over
+  HTTP by deliberate choice (the server is `127.0.0.1`-only and the value is
+  already plain text in `.env`); revisit if the bind address ever changes.
+- Progress is SSE on `/api/sync/stream`, replaying the ordered lines the
+  scrapers already print. `/api/data-status` reports counts and mtimes for the
+  "N orders · 2h ago" line.
+
 **Client.** Vite's root is `client/` and its config lives at `client/vite.config.js`, so it must be started with `--config client/vite.config.js` (the npm scripts do this). The dev server proxies `/api` to `:3001`. `useDataTable.js` is the shared search/sort/pagination hook — search recurses into nested arrays and objects so a query matches SKUs inside `items[]`, and sorting tries a `฿`/comma-stripped numeric compare before falling back to `localeCompare(…, 'th')`.
 
 The third tab, **Stats**, renders the `npm run stats` figures rather than

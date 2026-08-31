@@ -41,7 +41,7 @@ export default function OrdersTable({ orders }) {
   if (!orders.length) {
     return (
       <p className="status">
-        No orders found. Run <code>npm run orders</code> first.
+        No orders yet. Press <strong>Sync</strong> above, or run <code>npm run orders</code>.
       </p>
     );
   }
