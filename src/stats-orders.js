@@ -137,7 +137,7 @@ export function report(orders, details, opts = {}) {
     const shown = Number.isFinite(top) ? codes.slice(0, top) : codes;
     lines.push('', `Discount codes used${Number.isFinite(top) && codes.length > shown.length ? ` (${shown.length} of ${codes.length})` : ''}`);
     for (const c of shown) {
-      lines.push(`  ${pad(c.code, 14)}${money(c.spent)}  ${c.orders} order(s)`);
+      lines.push(`  ${pad(c.code, 16)}${String(c.orders).padStart(3)} order(s)`);
     }
   }
 

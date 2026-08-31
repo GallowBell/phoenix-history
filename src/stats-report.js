@@ -87,19 +87,29 @@ export function seriesSpend(details) {
   return [...groups.values()].sort((a, b) => b.listed - a.listed || a.label.localeCompare(b.label, 'th'));
 }
 
-/** Which discount codes were used, and on how much spend. */
+/**
+ * Which discount codes were used, and on how many orders.
+ *
+ * **Order count only, deliberately.** A scraped order carries the code string
+ * (`โค้ดส่วนลด`) and what was paid (`ราคาสุทธิ`) — the site returns no discount
+ * amount anywhere. Reporting money per code meant reporting the net spend on
+ * the orders that used it, which reads as "saved with this code" and is a
+ * different and much larger number. Counting orders is the claim the data
+ * actually supports. (`priceGap` derives the total gap, but only in aggregate.)
+ */
 export function discountCodes(orders) {
   const groups = new Map();
   for (const order of orders ?? []) {
     if (isCancelled(order)) continue;
     const code = String(order[DISCOUNT_KEY] ?? '').trim();
     if (!code || code === NO_DISCOUNT) continue;
-    const entry = groups.get(code) ?? { code, orders: 0, spent: 0 };
+    const entry = groups.get(code) ?? { code, orders: 0 };
     entry.orders++;
-    entry.spent += parsePrice(order[PRICE_KEY]) ?? 0;
     groups.set(code, entry);
   }
-  return [...groups.values()].sort((a, b) => b.orders - a.orders || b.spent - a.spent);
+  // Ties break on the code so the order is stable and explainable; the old
+  // tiebreak was the spend figure that is no longer computed.
+  return [...groups.values()].sort((a, b) => b.orders - a.orders || a.code.localeCompare(b.code));
 }
 
 /**

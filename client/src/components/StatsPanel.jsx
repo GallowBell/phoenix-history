@@ -313,7 +313,6 @@ function CodesSection({ codes }) {
           <thead>
             <tr>
               <th>Code</th>
-              <th className="num">Spent</th>
               <th className="num">Orders</th>
             </tr>
           </thead>
@@ -321,7 +320,6 @@ function CodesSection({ codes }) {
             {shown.map((c) => (
               <tr key={c.code}>
                 <td className="code-name">{c.code}</td>
-                <td className="num money">{formatBaht(c.spent)}</td>
                 <td className="num">{c.orders}</td>
               </tr>
             ))}

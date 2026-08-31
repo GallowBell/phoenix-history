@@ -181,7 +181,7 @@ It prints:
 | **Spend by month** | Recent months; quiet months appear as `฿0.00` rather than being skipped |
 | **Top series by list price** | Which series cost the most, volumes collapsed together |
 | **List price vs paid** | Discounts and delivery fees, derived (see below) |
-| **Discount codes used** | Which codes you used, and on how much spend |
+| **Discount codes used** | Which codes you used, and on how many orders |
 
 Two honest caveats the report repeats on screen:
 
@@ -191,6 +191,10 @@ Two honest caveats the report repeats on screen:
   an order total, so the discount is the gap between them. That gap runs both
   ways — on older, smaller orders it is a flat ฿35/฿50 delivery fee instead of a
   discount, so the two are reported as separate lines rather than netted off.
+- **Codes are counted, not priced.** A scraped order carries the code and what
+  was paid, never a discount amount, so the code list reports order counts only.
+  A money column there would be the spend on those orders, which reads as the
+  saving and is a much larger number.
 
 Series and discount figures need `orders-details.json`; run
 `npm run order-details` first, or the report says so and shows the rest.

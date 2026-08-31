@@ -103,6 +103,16 @@ describe('StatsPanel', () => {
     expect(codes.queryByText('-')).toBeNull();
   });
 
+  it('reports discount codes by order count only, never by money', () => {
+    // The site returns no discount amount. A money column here would be the
+    // spend on the coded orders, which reads as the saving and is not.
+    render(<StatsPanel orders={ORDERS} details={DETAILS} />);
+    const codes = section('discount codes');
+    const headers = [...codes.querySelectorAll('th')].map((th) => th.textContent.trim());
+    expect(headers).toEqual(['Code', 'Orders']);
+    expect(within(codes).queryByText(/฿/)).toBeNull();
+  });
+
   it('points at the npm script when no details have been scraped', () => {
     render(<StatsPanel orders={ORDERS} details={[]} />);
     expect(screen.getByText(/npm run order-details/)).toBeTruthy();

@@ -190,6 +190,11 @@ Notes worth keeping:
 - Series totals are **list prices** from item subtotals. An order-level discount
   cannot be attributed to one item, so the report labels them rather than
   silently apportioning.
+- **Discount codes are reported by order count, never by money.** An order row
+  carries `โค้ดส่วนลด` and `ราคาสุทธิ` and no discount amount, so the only money
+  `discountCodes()` could report is the net spend on the orders that used a
+  code — which reads as "saved with this code" and is a different, much larger
+  number. `StatsPanel.test.jsx` guards the column list so it cannot creep back.
 - The site exposes no discount line, so the discount is **derived** as
   `sum(item subtotals) - net price`. That gap runs both ways: positive is a code
   discount, negative is the flat ฿35/฿50 delivery fee on older small orders.
