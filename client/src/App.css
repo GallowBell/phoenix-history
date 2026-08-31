@@ -298,3 +298,192 @@ mark.hl {
   font-weight: 400;
   color: var(--muted);
 }
+
+/* ── Stats ───────────────────────────────────────── */
+/* Same figures as `npm run stats`. Colours are the app's existing tokens:
+   teal is money everywhere else in the UI, and the good/bad pair below is the
+   same green and red the status badges already use. */
+.stats {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  align-items: start;
+}
+
+.stats-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px 16px;
+}
+.stats-card.is-wide { grid-column: 1 / -1; }
+
+.stats-card-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding-bottom: 10px;
+}
+.stats-card-count {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  opacity: 0.75;
+}
+
+/* Overall — the three headline figures */
+.stats-tiles { display: flex; flex-wrap: wrap; gap: 10px 32px; }
+.stats-tile { display: flex; flex-direction: column; gap: 1px; }
+.stats-tile-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.stats-tile-value {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.stats-tile-value.is-money { color: var(--price-color); }
+.stats-tile-value.is-muted { color: var(--muted); font-weight: 600; font-size: 18px; }
+.stats-tile-note { font-size: 11px; color: var(--muted); }
+
+/* Tables — lighter than the Orders grid; these are read as figures, not rows */
+.stats-table { width: 100%; font-size: 13px; }
+.stats-table th {
+  position: static;
+  background: none;
+  cursor: default;
+  border-bottom: 1px solid var(--border);
+  padding: 6px 10px;
+}
+.stats-table th:hover { color: var(--muted); }
+.stats-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
+.stats-table tr:last-child td { border-bottom: none; }
+.stats-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.stats-table .money { color: var(--price-color); font-weight: 600; }
+.stats-table .rank-col { width: 1%; color: var(--muted); text-align: right; }
+.stats-table .code-name { font-weight: 600; }
+
+/* A month with no orders is a fact, not an absence — kept, but recessive */
+.stats-table tr.is-quiet td { color: var(--muted); }
+.stats-table tr.is-quiet .money { color: var(--muted); font-weight: 400; }
+
+.stats-table .series-name {
+  white-space: normal;
+  min-width: 200px;
+  max-width: 460px;
+}
+
+/* Bars: one hue, sized against the largest value in their own table */
+.stats-table .bar-col { width: 26%; min-width: 90px; }
+.stats-bar {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  height: 8px;
+  width: 100%;
+}
+.stats-bar-fill {
+  background: var(--price-color);
+  border-radius: 3px;
+  height: 100%;
+  transition: width 0.2s ease;
+}
+
+/* Signature: every month since the first order, gaps included */
+.stats-timeline { padding: 2px 0 12px; }
+.stats-timeline-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 64px;
+  border-bottom: 1px solid var(--border);
+}
+.stats-tl-slot {
+  flex: 1 1 0;
+  min-width: 3px;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  border-radius: 2px;
+}
+.stats-tl-slot:hover { background: rgba(255, 255, 255, 0.06); }
+.stats-tl-bar {
+  width: 100%;
+  background: var(--price-color);
+  border-radius: 2px 2px 0 0;
+  min-height: 0;
+}
+.stats-timeline-years { display: flex; gap: 2px; padding-top: 4px; }
+.stats-tl-year {
+  font-size: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  border-left: 1px solid var(--border);
+  padding-left: 4px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* List price vs paid */
+.stats-gap { display: flex; flex-direction: column; gap: 2px; }
+.stats-gap-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+}
+.stats-gap-row:last-child { border-bottom: none; }
+.stats-gap dt { color: var(--muted); font-size: 13px; min-width: 110px; }
+.stats-gap dd {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  margin-left: auto;
+}
+.stats-gap-amount { white-space: nowrap; }
+.stats-gap dd.money { color: var(--price-color); }
+.stats-gap dd.is-good { color: #81c784; }
+.stats-gap dd.is-fee { color: #e57373; }
+.stats-gap-note { font-size: 11px; color: var(--muted); font-weight: 400; white-space: nowrap; }
+
+.stats-note {
+  color: var(--muted);
+  font-size: 11px;
+  padding-top: 8px;
+  line-height: 1.45;
+}
+
+.stats-empty {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 4px 2px;
+}
+
+.stats-more {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  margin-top: 10px;
+  transition: color 0.1s, border-color 0.1s;
+}
+.stats-more:hover { color: var(--text); border-color: var(--accent-light); }
+.stats-more:focus-visible { outline: 2px solid var(--accent-light); outline-offset: 1px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .stats-bar-fill { transition: none; }
+}

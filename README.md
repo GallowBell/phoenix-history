@@ -169,6 +169,9 @@ npm run stats -- --top 20 --months 24   # longer lists
 npm run stats -- --all                  # no limits
 ```
 
+The same figures are in the web UI under the **Stats** tab (`npm start`), where
+each capped list has a **Show all** button.
+
 It prints:
 
 | Section | What it shows |

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import OrdersTable from './components/OrdersTable.jsx';
 import OrderDetailsTable from './components/OrderDetailsTable.jsx';
+import StatsPanel from './components/StatsPanel.jsx';
 import { summarise, formatBaht } from '../../src/orders-total.js';
 
 export default function App() {
@@ -67,6 +68,9 @@ export default function App() {
         <button className={tab === 'details' ? 'active' : ''} onClick={() => setTab('details')}>
           Order Details {details.length > 0 && <span className="badge">{details.length}</span>}
         </button>
+        <button className={tab === 'stats' ? 'active' : ''} onClick={() => setTab('stats')}>
+          Stats
+        </button>
       </nav>
 
       <main>
@@ -74,6 +78,7 @@ export default function App() {
         {error && <p className="status error">{error}</p>}
         {!loading && tab === 'orders' && <OrdersTable orders={orders} />}
         {!loading && tab === 'details' && <OrderDetailsTable details={details} />}
+        {!loading && tab === 'stats' && <StatsPanel orders={orders} details={details} />}
       </main>
     </div>
   );
