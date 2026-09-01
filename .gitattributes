@@ -1,0 +1,4 @@
+# The repo is LF everywhere; the index already was. This keeps a Windows
+# editor on /mnt/c from silently rewriting a file with CRLF and floating it
+# in `git status` as a whole-file change that hides the real diff.
+* text=auto eol=lf
