@@ -7,6 +7,7 @@ const COMMANDS = {
   excel: () => import('./export-excel.js'),
   find: () => import('./find-orders.js'),
   stats: () => import('./stats-orders.js'),
+  collection: () => import('./collection-orders.js'),
 };
 
 const command = process.argv[2];

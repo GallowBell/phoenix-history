@@ -199,6 +199,41 @@ Two honest caveats the report repeats on screen:
 Series and discount figures need `orders-details.json`; run
 `npm run order-details` first, or the report says so and shows the rest.
 
+### Collection gaps
+
+Reads the `เล่ม N` volume number off each item name and shows which volumes of
+a series you own — and which ones are missing in between. Offline and
+read-only, like the spend report.
+
+```bash
+npm run collection
+npm run collection -- --top 20   # more series
+npm run collection -- --all      # every series, including the complete ones
+```
+
+```
+  ผมเนี่ยนะ...ชายแปด!
+    owned 22 of 23   vol 1-23   missing: 18
+    ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▫▪▪▪▪▪
+```
+
+The same figures are in the web UI under the **Collection** tab, where each run
+is drawn as a strip of volumes and the missing ones are outlined in red.
+
+Three rules keep the list honest, and it repeats them on screen:
+
+- **Only gaps *between* volumes you own are reported.** A series you own from
+  volume 3 up is listed separately under *Starts above volume 1* and counted as
+  missing nothing — far more likely bought elsewhere than skipped.
+- **A gap can still mean a volume bought elsewhere.** This only sees what you
+  ordered from this site.
+- **Half volumes never create a gap.** `เล่ม 12.5` is a real side story; it
+  counts as owned and hangs off volume 12 rather than making 13 look missing.
+
+Cancelled orders are excluded — the same rule as `npm run sum` — so a cancelled
+order never fills a hole. Items with no `เล่ม` number at all (one-shots, box
+sets) are outside the report, and it says how many there were.
+
 ### Sync from the browser
 
 `npm start` puts a **Sync** button in the header, so a refresh does not need a
