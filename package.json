@@ -16,6 +16,7 @@
     "excel": "node --env-file=.env src/index.js excel",
     "find": "node --env-file=.env src/index.js find",
     "stats": "node --env-file=.env src/index.js stats",
+    "collection": "node --env-file=.env src/index.js collection",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

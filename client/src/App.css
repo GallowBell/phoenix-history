@@ -558,3 +558,129 @@ mark.hl {
   outline: none;
 }
 .sync-cookie-input:focus { border-color: var(--accent-light); }
+
+/* ── Collection ──────────────────────────────────── */
+/* Same figures as `npm run collection`. The strip is the point of the tab: a
+   hole in a run of volumes is a shape, and the eye finds it faster than it
+   reads "missing: 18". Green/red are the pair already used by .stats-gap. */
+.stats-tile-value.is-good { color: #81c784; }
+.stats-tile-value.is-bad { color: #e57373; }
+
+.collection-series {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.collection-series:first-of-type { padding-top: 2px; }
+.collection-series:last-of-type { border-bottom: none; padding-bottom: 4px; }
+
+.collection-series-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding-bottom: 8px;
+}
+.collection-series-name {
+  font-weight: 600;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.collection-series-count {
+  margin-left: auto;
+  flex: none;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The volume run. Wraps rather than scrolls: a 23-volume series on a narrow
+   window should stay one readable block, not a sideways scroller. */
+.vol-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.vol-slot {
+  position: relative;
+  min-width: 26px;
+  height: 24px;
+  padding: 0 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: rgba(128, 203, 196, 0.14);
+  color: var(--price-color);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+}
+.vol-slot.is-missing {
+  background: transparent;
+  border: 1px dashed #e57373;
+  color: #e57373;
+}
+/* A half volume (เล่ม 12.5) hangs off the whole number below it. */
+.vol-extra {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--price-color);
+}
+
+.collection-missing {
+  padding-top: 7px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.collection-missing strong { color: #e57373; font-variant-numeric: tabular-nums; }
+.collection-note { color: var(--muted); }
+
+.collection-hint,
+.collection-none {
+  font-size: 12px;
+  color: var(--muted);
+  padding-bottom: 8px;
+}
+.collection-none { padding-bottom: 0; }
+
+.collection-list { list-style: none; display: flex; flex-direction: column; gap: 1px; }
+.collection-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.collection-list li:last-child { border-bottom: none; }
+.collection-from {
+  flex: none;
+  min-width: 52px;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.collection-from.is-good { color: #81c784; }
+.collection-list-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.collection-caveat {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 2px 2px 8px;
+}
+.collection-caveat code {
+  font-size: 11px;
+  background: var(--bg);
+  padding: 1px 4px;
+  border-radius: 3px;
+}

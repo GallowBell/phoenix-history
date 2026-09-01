@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import OrdersTable from './components/OrdersTable.jsx';
 import OrderDetailsTable from './components/OrderDetailsTable.jsx';
 import StatsPanel from './components/StatsPanel.jsx';
+import CollectionPanel from './components/CollectionPanel.jsx';
 import SyncButton from './components/SyncButton.jsx';
 import { summarise, formatBaht } from '../../src/orders-total.js';
 
@@ -74,6 +75,12 @@ export default function App() {
         <button className={tab === 'stats' ? 'active' : ''} onClick={() => setTab('stats')}>
           Stats
         </button>
+        <button
+          className={tab === 'collection' ? 'active' : ''}
+          onClick={() => setTab('collection')}
+        >
+          Collection
+        </button>
       </nav>
 
       <main>
@@ -82,6 +89,7 @@ export default function App() {
         {!loading && tab === 'orders' && <OrdersTable orders={orders} />}
         {!loading && tab === 'details' && <OrderDetailsTable details={details} />}
         {!loading && tab === 'stats' && <StatsPanel orders={orders} details={details} />}
+        {!loading && tab === 'collection' && <CollectionPanel details={details} />}
       </main>
     </div>
   );

@@ -19,6 +19,7 @@ npm run sum               # print total spend
 npm run excel             # write orders.xlsx
 npm run find [key] <value># search scraped data offline (default key: name)
 npm run stats             # spend by year/month, top series, discounts (offline)
+npm run collection        # volumes owned per series, and the gaps (offline)
 npm test                  # vitest run
 npm run test:watch
 npm run test:coverage     # v8 coverage over src/**, client/src/**, server.js
@@ -160,6 +161,36 @@ the newest-first ordering survives the join. A merge can only grow the list;
 writing fewer orders than the file already held is refused, alongside the
 existing empty-scrape guard.
 
+**`npm run collection`** reports which volumes of a series you own and which
+are missing in between. It follows the same two-module split as `stats`, for
+the same reason — `src/collection-report.js` is **free of Node imports** so the
+Collection tab computes the same figures from the same code, and
+`src/collection-orders.js` is the CLI half (`readJson`, `parseArgs`, `report`,
+`strip`). Offline and read-only: no `orders-config.js`, no cookie.
+
+Volume numbers come from `parseProductName`, which already reads `เล่ม N`; the
+only new logic is `gapsBetween`. Four rules, each forced by the real data:
+
+- **A gap is only claimed between two volumes you own.** Anything below the
+  lowest is reported as `startsAbove` and counted as missing nothing — 10 of
+  the 31 real series start above volume 1, and treating those as holes would
+  bury the 5 genuine gaps under noise.
+- **Only whole numbers are ever reported missing**, and fewer than two whole
+  volumes means no gap analysis at all. `เล่ม 12.5` is a common side story: it
+  counts as owned, and `volumeRun` hangs it off the whole number below rather
+  than giving it a slot, so it never renders as a half-width gap.
+- **Cancelled orders are excluded**, the same rule as `npm run sum` — a
+  cancelled order is not a book you have and must not fill a hole.
+- **Giveaways are excluded via `isFreebie`.** In `collectSeries` that guard is
+  belt-and-braces (a freebie never carries a volume, so the volume check
+  already drops it), but in `collectionSummary` it is load-bearing: without it
+  the 37 `Free Gift -` / `ครบ N บาท -` items would be counted among the "no
+  เล่ม number" caveat and report 43 untracked items where the honest figure
+  is 6.
+
+Both renderers state the caveat that a gap may simply be a volume bought
+elsewhere — this only sees what was ordered from this site.
+
 **`npm run stats`** is offline and read-only like `find-orders.js` — it must not
 import `orders-config.js`, since it needs no cookie. It reports spend by year and
 month, top series, discount codes, and the gap between list price and paid.
@@ -249,6 +280,14 @@ already in the pipeline rather than reimplementing them behind a route.
   "N orders · 2h ago" line.
 
 **Client.** Vite's root is `client/` and its config lives at `client/vite.config.js`, so it must be started with `--config client/vite.config.js` (the npm scripts do this). The dev server proxies `/api` to `:3001`. `useDataTable.js` is the shared search/sort/pagination hook — search recurses into nested arrays and objects so a query matches SKUs inside `items[]`, and sorting tries a `฿`/comma-stripped numeric compare before falling back to `localeCompare(…, 'th')`.
+
+The fourth tab, **Collection** (`client/src/components/CollectionPanel.jsx`),
+renders the `npm run collection` figures. It takes only `details` as a prop and
+draws each series as a strip of volume slots, the missing ones outlined in red —
+the point being that a hole is a *shape*, and finding it by eye beats reading
+"missing: 18" off a line of text. `CollectionPanel.test.jsx` carries the same
+static guard as `StatsPanel.test.jsx` that `collection-report.js` imports
+nothing but relative paths.
 
 The third tab, **Stats**, renders the `npm run stats` figures rather than
 printing them. It takes `orders` and `details` as props — App.jsx already holds
