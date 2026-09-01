@@ -1,0 +1,27 @@
+<!doctype html>
+<!--
+  The silent failure mode: an expired session that arrives as a 200 login page
+  rather than a 302, so no redirect check can see it. Both parsers must come
+  back empty from this — that emptiness is what the empty-overwrite guards in
+  fetch-orders.js and fetch-order-details.js exist to catch.
+-->
+<html lang="th">
+  <head><title>เข้าสู่ระบบ</title></head>
+  <body class="customer-account-login">
+    <div class="page-main">
+      <form class="form form-login" action="https://www.phoenixnext.com/customer/account/loginPost/" method="post">
+        <fieldset class="fieldset login">
+          <div class="field email required">
+            <label for="email"><span>อีเมล</span></label>
+            <input name="login[username]" id="email" type="email" class="input-text" />
+          </div>
+          <div class="field password required">
+            <label for="pass"><span>รหัสผ่าน</span></label>
+            <input name="login[password]" id="pass" type="password" class="input-text" />
+          </div>
+          <button type="submit" class="action login primary"><span>เข้าสู่ระบบ</span></button>
+        </fieldset>
+      </form>
+    </div>
+  </body>
+</html>

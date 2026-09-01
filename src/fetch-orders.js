@@ -44,13 +44,26 @@ async function fetchPage(page, headers) {
   if (isLoginRedirect(response)) throw new SessionExpiredError(url);
   if (isRedirect(response.status)) return null;
 
-  const $ = cheerio.load(response.data);
+  return parseOrdersPage(response.data, headers);
+}
+
+/**
+ * The order table as records, keyed by the site's own Thai `<thead>` cells.
+ *
+ * Split out of `fetchPage` so the selectors can be exercised against saved
+ * markup. Selector breakage is the documented failure mode when the site
+ * changes, and while it was welded to the axios call it was the one thing the
+ * suite could not see.
+ *
+ * `headers` is an in/out parameter, as it was inside the fetch loop: page 1
+ * fills it from `<thead>` and later pages reuse it. Returns null when there is
+ * no table at all — a 200 login page, or a page past the last one.
+ */
+export function parseOrdersPage(html, headers = []) {
+  const $ = cheerio.load(html);
   const table = $('#my-orders-table');
 
-  if (!table.length) {
-    // Could be a redirect to login or an empty page beyond last page
-    return null;
-  }
+  if (!table.length) return null;
 
   // Extract column headers (only needed once, passed in after page 1)
   if (!headers.length) {

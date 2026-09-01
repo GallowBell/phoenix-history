@@ -1,0 +1,142 @@
+<!doctype html>
+<!--
+  A reconstruction of https://www.phoenixnext.com/sales/order/history/ — the
+  markup `parseOrdersPage` reads. Order numbers, dates and codes are invented;
+  the *structure* is constrained by what the live parser demonstrably produced:
+
+    - eight columns, in this exact order, keyed by the <thead> text verbatim
+    - `ที่อยู่จัดส่ง` and `สั่งซื้ออีกครั้ง` come out as "" on every real row,
+      so neither cell may contribute text or an <a href>
+    - `ดูรายละเอียด` comes out as a URL, which happens only when the cell has
+      an anchor and NO text — hence the icon-only link
+    - every cell carries a `lg:hidden` mobile label that must be stripped, or
+      the label text would land in the value
+-->
+<html lang="th">
+  <head><title>ประวัติการสั่งซื้อ</title></head>
+  <body class="account sales-order-history">
+    <div class="page-main">
+      <div class="table-wrapper orders-history">
+        <table id="my-orders-table" class="data table table-order-items history w-full">
+          <caption class="table-caption">ประวัติการสั่งซื้อ</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="col id">หมายเลขคำสั่งซื้อ</th>
+              <th scope="col" class="col date">วันที่ซื้อ</th>
+              <th scope="col" class="col shipping">ที่อยู่จัดส่ง</th>
+              <th scope="col" class="col total">ราคาสุทธิ</th>
+              <th scope="col" class="col discount">โค้ดส่วนลด</th>
+              <th scope="col" class="col status">สถานะ</th>
+              <th scope="col" class="col actions">ดูรายละเอียด</th>
+              <th scope="col" class="col reorder">สั่งซื้ออีกครั้ง</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="item-row">
+              <td class="col id" data-th="หมายเลขคำสั่งซื้อ">
+                <span class="lg:hidden font-semibold">หมายเลขคำสั่งซื้อ</span>
+                000100001
+              </td>
+              <td class="col date" data-th="วันที่ซื้อ">
+                <span class="lg:hidden font-semibold">วันที่ซื้อ</span>
+                <span class="block">29/8/26</span>
+                <span class="block text-sm">29 สิงหาคม 2026</span>
+              </td>
+              <td class="col shipping" data-th="ที่อยู่จัดส่ง">
+                <span class="lg:hidden font-semibold">ที่อยู่จัดส่ง</span>
+              </td>
+              <td class="col total" data-th="ราคาสุทธิ">
+                <span class="lg:hidden font-semibold">ราคาสุทธิ</span>
+                <span class="price">฿1,800.00</span>
+              </td>
+              <td class="col discount" data-th="โค้ดส่วนลด">
+                <span class="lg:hidden font-semibold">โค้ดส่วนลด</span>
+                10LEVEL999
+              </td>
+              <td class="col status" data-th="สถานะ">
+                <span class="lg:hidden font-semibold">สถานะ</span>
+                กำลังเตรียมสินค้า
+              </td>
+              <td class="col actions" data-th="ดูรายละเอียด">
+                <a href="https://www.phoenixnext.com/sales/order/view/order_id/100001/" class="action view" title="ดูรายละเอียด"><svg class="w-5 h-5" viewBox="0 0 24 24"><path d="M12 5v14"></path></svg></a>
+              </td>
+              <td class="col reorder" data-th="สั่งซื้ออีกครั้ง">
+                <form action="https://www.phoenixnext.com/checkout/cart/reorder/" method="post">
+                  <button type="submit" class="action order"><svg class="w-5 h-5" viewBox="0 0 24 24"><path d="M4 4h16"></path></svg></button>
+                </form>
+              </td>
+            </tr>
+            <tr class="item-row">
+              <td class="col id" data-th="หมายเลขคำสั่งซื้อ">
+                <span class="lg:hidden font-semibold">หมายเลขคำสั่งซื้อ</span>
+                000100002
+              </td>
+              <td class="col date" data-th="วันที่ซื้อ">
+                <span class="lg:hidden font-semibold">วันที่ซื้อ</span>
+                <span class="block">30/7/26</span>
+                <span class="block text-sm">30 กรกฎาคม 2026</span>
+              </td>
+              <td class="col shipping" data-th="ที่อยู่จัดส่ง">
+                <span class="lg:hidden font-semibold">ที่อยู่จัดส่ง</span>
+              </td>
+              <td class="col total" data-th="ราคาสุทธิ">
+                <span class="lg:hidden font-semibold">ราคาสุทธิ</span>
+                <span class="price">฿1,310.00</span>
+              </td>
+              <td class="col discount" data-th="โค้ดส่วนลด">
+                <span class="lg:hidden font-semibold">โค้ดส่วนลด</span>
+                -
+              </td>
+              <td class="col status" data-th="สถานะ">
+                <span class="lg:hidden font-semibold">สถานะ</span>
+                จัดส่งแล้ว
+              </td>
+              <td class="col actions" data-th="ดูรายละเอียด">
+                <a href="https://www.phoenixnext.com/sales/order/view/order_id/100002/" class="action view" title="ดูรายละเอียด"><svg class="w-5 h-5" viewBox="0 0 24 24"><path d="M12 5v14"></path></svg></a>
+              </td>
+              <td class="col reorder" data-th="สั่งซื้ออีกครั้ง">
+                <form action="https://www.phoenixnext.com/checkout/cart/reorder/" method="post">
+                  <button type="submit" class="action order"><svg class="w-5 h-5" viewBox="0 0 24 24"><path d="M4 4h16"></path></svg></button>
+                </form>
+              </td>
+            </tr>
+            <tr class="item-row">
+              <td class="col id" data-th="หมายเลขคำสั่งซื้อ">
+                <span class="lg:hidden font-semibold">หมายเลขคำสั่งซื้อ</span>
+                000100003
+              </td>
+              <td class="col date" data-th="วันที่ซื้อ">
+                <span class="lg:hidden font-semibold">วันที่ซื้อ</span>
+                <span class="block">15/6/26</span>
+                <span class="block text-sm">15 มิถุนายน 2026</span>
+              </td>
+              <td class="col shipping" data-th="ที่อยู่จัดส่ง">
+                <span class="lg:hidden font-semibold">ที่อยู่จัดส่ง</span>
+              </td>
+              <td class="col total" data-th="ราคาสุทธิ">
+                <span class="lg:hidden font-semibold">ราคาสุทธิ</span>
+                <span class="price">฿500.00</span>
+              </td>
+              <td class="col discount" data-th="โค้ดส่วนลด">
+                <span class="lg:hidden font-semibold">โค้ดส่วนลด</span>
+                -
+              </td>
+              <td class="col status" data-th="สถานะ">
+                <span class="lg:hidden font-semibold">สถานะ</span>
+                ออร์เดอร์ยกเลิก
+              </td>
+              <td class="col actions" data-th="ดูรายละเอียด">
+                <a href="https://www.phoenixnext.com/sales/order/view/order_id/100003/" class="action view" title="ดูรายละเอียด"><svg class="w-5 h-5" viewBox="0 0 24 24"><path d="M12 5v14"></path></svg></a>
+              </td>
+              <td class="col reorder" data-th="สั่งซื้ออีกครั้ง">
+                <form action="https://www.phoenixnext.com/checkout/cart/reorder/" method="post">
+                  <button type="submit" class="action order"><svg class="w-5 h-5" viewBox="0 0 24 24"><path d="M4 4h16"></path></svg></button>
+                </form>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </body>
+</html>

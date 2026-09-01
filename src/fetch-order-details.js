@@ -67,7 +67,21 @@ async function fetchOrderItems(url) {
     // somewhere else. Fail just this order rather than aborting the run.
     throw new Error(`unexpected redirect to ${redirectTarget(response) ?? 'an unknown location'}`);
   }
-  const $ = cheerio.load(response.data);
+  return parseOrderItems(response.data);
+}
+
+/**
+ * The `items[]` of one order detail page.
+ *
+ * Split out of `fetchOrderItems` for the same reason as `parseOrdersPage`: the
+ * selectors below are site-specific and are what break when the markup moves,
+ * so they need to be reachable from a test without a network call.
+ *
+ * Everything here is positional within `.parent-item` — see the price cells,
+ * where index 0 is the unit price and index 1 the subtotal.
+ */
+export function parseOrderItems(html) {
+  const $ = cheerio.load(html);
 
   const items = [];
 
