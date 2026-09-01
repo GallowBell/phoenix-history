@@ -7,9 +7,11 @@ import {
   canStopEarly,
   mergeOrders,
   loadExisting,
+  parseOrdersPage,
 } from './fetch-orders.js';
 import { DELIVERED_STATUS, CANCELLED_STATUS } from './orders-total.js';
 import { writeFile, rm } from 'fs/promises';
+import { readFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import config from './orders-config.js';
@@ -160,5 +162,138 @@ describe('incremental scraping', () => {
       expect(await loadExisting('/nope/does-not-exist.json')).toEqual([]);
       expect(await loadExisting(null)).toEqual([]);
     });
+  });
+});
+
+/**
+ * The one part of the scraper the rest of the suite cannot see.
+ *
+ * Everything else here tests the logic *around* the parse — paging, merging,
+ * the stop rule. These run the cheerio selectors themselves against saved
+ * markup, which is the documented failure mode when the site changes.
+ *
+ * `tests/fixtures/order-history-page.html` is a reconstruction, not a capture:
+ * it is built to satisfy what the live parser demonstrably produced (the eight
+ * Thai keys in order, an empty address and reorder cell, a URL for the detail
+ * cell). It cannot prove the live markup still looks like this — only a fresh
+ * capture does that — but it does pin every behaviour the parser relies on.
+ */
+describe('parseOrdersPage', () => {
+  const html = readFileSync('tests/fixtures/order-history-page.html', 'utf8');
+
+  it('keys each row by the <thead> cells verbatim, which is the data contract', () => {
+    const headers = [];
+    const rows = parseOrdersPage(html, headers);
+    expect(headers).toEqual([
+      'หมายเลขคำสั่งซื้อ',
+      'วันที่ซื้อ',
+      'ที่อยู่จัดส่ง',
+      'ราคาสุทธิ',
+      'โค้ดส่วนลด',
+      'สถานะ',
+      'ดูรายละเอียด',
+      'สั่งซื้ออีกครั้ง',
+    ]);
+    expect(Object.keys(rows[0])).toEqual(headers);
+  });
+
+  it('reads every row on the page', () => {
+    const rows = parseOrdersPage(html, []);
+    expect(rows).toHaveLength(3);
+    expect(rows.map((r) => r['หมายเลขคำสั่งซื้อ'])).toEqual(['000100001', '000100002', '000100003']);
+  });
+
+  it('strips the lg:hidden mobile label instead of reading it as the value', () => {
+    // Every cell repeats its column name for narrow screens. Left in, the
+    // status would parse as 'สถานะ กำลังเตรียมสินค้า' and never match
+    // isTerminal() — the incremental scrape would re-read the whole history.
+    const rows = parseOrdersPage(html, []);
+    expect(rows[0]['สถานะ']).toBe('กำลังเตรียมสินค้า');
+    expect(rows[0]['ราคาสุทธิ']).toBe('฿1,800.00');
+    expect(rows[0]['หมายเลขคำสั่งซื้อ']).toBe('000100001');
+  });
+
+  it('collapses the split date cell into the single string the parser expects', () => {
+    // The two halves sit in separate spans; stats parses the d/m/yy prefix.
+    expect(parseOrdersPage(html, [])[0]['วันที่ซื้อ']).toBe('29/8/26 29 สิงหาคม 2026');
+  });
+
+  it('takes the href when a cell holds an icon link and no text', () => {
+    // This is how ดูรายละเอียด becomes a URL, which the whole details
+    // pipeline depends on — getDetailUrl() scans the row for exactly this.
+    const rows = parseOrdersPage(html, []);
+    expect(rows[0]['ดูรายละเอียด']).toBe(
+      'https://www.phoenixnext.com/sales/order/view/order_id/100001/'
+    );
+  });
+
+  it('leaves a cell empty when its action is a form button rather than a link', () => {
+    // สั่งซื้ออีกครั้ง posts to the cart; if its URL leaked into the row,
+    // getDetailUrl could hand the details fetcher the wrong page.
+    const rows = parseOrdersPage(html, []);
+    expect(rows[0]['สั่งซื้ออีกครั้ง']).toBe('');
+    expect(rows[0]['ที่อยู่จัดส่ง']).toBe('');
+  });
+
+  it('reuses headers already read rather than re-reading them per page', () => {
+    // Page 2+ is parsed with the headers page 1 filled in.
+    const headers = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    const rows = parseOrdersPage(html, headers);
+    expect(headers).toHaveLength(8);
+    expect(Object.keys(rows[0])).toEqual(headers);
+  });
+
+  it('returns null for a 200 login page, which no redirect check can catch', () => {
+    // An expired session can arrive as a 200. Returning null is what makes
+    // the caller stop rather than write an empty orders.json.
+    const login = readFileSync('tests/fixtures/login-page.html', 'utf8');
+    expect(parseOrdersPage(login, [])).toBeNull();
+  });
+
+  it('parses each status the live site actually uses', () => {
+    const rows = parseOrdersPage(html, []);
+    expect(rows.map((r) => r['สถานะ'])).toEqual([
+      'กำลังเตรียมสินค้า',
+      DELIVERED_STATUS,
+      CANCELLED_STATUS,
+    ]);
+  });
+});
+
+/**
+ * Precedence rules, pinned with minimal synthetic markup rather than a page
+ * fixture. These are statements about the parser, not claims about the site:
+ * each one exists because the selector is written a particular way, and a
+ * refactor that "simplified" it would change the scraped data silently.
+ */
+describe('parseOrdersPage cell rules', () => {
+  const page = (cells) => `
+    <table id="my-orders-table">
+      <thead><tr><th>ก</th><th>ข</th></tr></thead>
+      <tbody><tr>${cells}</tr></tbody>
+    </table>`;
+
+  it('prefers a cell’s text over its link, taking the href only when there is no text', () => {
+    // A linked order number must stay the order number. Reversing this would
+    // put a URL in หมายเลขคำสั่งซื้อ and break every lookup keyed on it.
+    const rows = parseOrdersPage(
+      page('<td><a href="https://example.com/x/">000100001</a></td><td><a href="https://example.com/y/"></a></td>'),
+      []
+    );
+    expect(rows[0]['ก']).toBe('000100001');
+    expect(rows[0]['ข']).toBe('https://example.com/y/');
+  });
+
+  it('reads a <th> in a body row as a cell, not just <td>', () => {
+    // The first cell of a row is markup-dependent; scoping to td alone would
+    // drop it and shift every remaining value one column left.
+    const rows = parseOrdersPage(page('<th>000100001</th><td>two</td>'), []);
+    expect(rows[0]['ก']).toBe('000100001');
+    expect(rows[0]['ข']).toBe('two');
+  });
+
+  it('ignores a column with no header rather than keying it undefined', () => {
+    const rows = parseOrdersPage(page('<td>one</td><td>two</td><td>extra</td>'), []);
+    expect(Object.keys(rows[0])).toEqual(['ก', 'ข']);
   });
 });

@@ -1,0 +1,95 @@
+<!doctype html>
+<!--
+  A reconstruction of https://www.phoenixnext.com/sales/order/view/order_id/N/ —
+  the markup `parseOrderItems` reads. Product names and SKUs are taken from the
+  shape the parser demonstrably produced; the nesting is what the selector chain
+  requires:
+
+    .parent-item
+      └ .lg:grid.grid-cols-5                      (the row; first one wins)
+          ├ .p-2.col-span-2                       (name + SKU column)
+          │   ├ > span.font-semibold              (name — DIRECT child only)
+          │   └ .item-options .text-sm.flex
+          │        span:not(.font-semibold)       (SKU — the label is skipped)
+          ├ span.price-including-tax span.price   (index 0 = unit price)
+          ├ span.content.font-semibold            (quantity)
+          └ span.price-including-tax span.price   (index 1 = subtotal)
+
+  The second item deliberately has quantity 2 with a subtotal that is not the
+  unit price, so a parser that read the wrong price cell could not still pass.
+-->
+<html lang="th">
+  <head><title>รายละเอียดคำสั่งซื้อ</title></head>
+  <body class="account sales-order-view">
+    <div class="order-details-items ordered">
+      <div class="table-wrapper order-items">
+        <div class="order-item-header lg:grid grid-cols-5 font-semibold">
+          <div class="p-2 col-span-2">สินค้า</div>
+          <div class="p-2">ราคา</div>
+          <div class="p-2">จำนวน</div>
+          <div class="p-2">ยอดรวม</div>
+        </div>
+
+        <div class="parent-item border-b">
+          <div class="lg:grid grid-cols-5 items-center">
+            <div class="p-2 col-span-2">
+              <span class="font-semibold">(PRE/SEP)(LN) Complete Set ขอต้อนรับสู่ห้องเรียนนิยม (เฉพาะ) ยอดคน ปี 3 เล่ม 2</span>
+              <div class="item-options">
+                <div class="text-sm flex">
+                  <span class="font-semibold">SKU:</span>
+                  <span>BX0948-01</span>
+                </div>
+              </div>
+            </div>
+            <div class="p-2">
+              <span class="lg:hidden">ราคา</span>
+              <span class="price-including-tax" data-label="ราคา">
+                <span class="price">฿1,420.00</span>
+              </span>
+            </div>
+            <div class="p-2">
+              <span class="lg:hidden">จำนวน</span>
+              <span class="content font-semibold">1</span>
+            </div>
+            <div class="p-2">
+              <span class="lg:hidden">ยอดรวม</span>
+              <span class="price-including-tax" data-label="ยอดรวม">
+                <span class="price">฿1,420.00</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="parent-item border-b">
+          <div class="lg:grid grid-cols-5 items-center">
+            <div class="p-2 col-span-2">
+              <span class="font-semibold">(PRE/SEP)(LN) Special Set ผมเนี่ยนะ...ชายแปด! เล่ม 23</span>
+              <div class="item-options">
+                <div class="text-sm flex">
+                  <span class="font-semibold">SKU:</span>
+                  <span>LN0832-01P</span>
+                </div>
+              </div>
+            </div>
+            <div class="p-2">
+              <span class="lg:hidden">ราคา</span>
+              <span class="price-including-tax" data-label="ราคา">
+                <span class="price">฿780.00</span>
+              </span>
+            </div>
+            <div class="p-2">
+              <span class="lg:hidden">จำนวน</span>
+              <span class="content font-semibold">2</span>
+            </div>
+            <div class="p-2">
+              <span class="lg:hidden">ยอดรวม</span>
+              <span class="price-including-tax" data-label="ยอดรวม">
+                <span class="price">฿1,560.00</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

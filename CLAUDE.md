@@ -295,7 +295,40 @@ Vitest runs in the `node` environment by default. React/hook tests opt into jsdo
 
 Tests are colocated (`src/foo.js` + `src/foo.test.js`); shared fixtures live in `tests/fixtures/`. `export-excel.test.js` drives the real exceljs path via `generateBuffer()` against
 a temp fixture and reads the workbook back, because the `parsePrice` unit tests
-passed while `npm run excel` was broken. Coverage of the scrapers is thin — the suite exercises pure helpers (`parsePrice`, `buildUrl`, `getDetailUrl`, `safeHref`, `useDataTable`) and mocks `fs/promises` for server routes, so it does **not** catch exceljs or cheerio breakage. Verify those by running the real command against a fixture.
+passed while `npm run excel` was broken. The suite otherwise exercises pure
+helpers (`parsePrice`, `buildUrl`, `getDetailUrl`, `safeHref`, `useDataTable`)
+and mocks `fs/promises` for server routes, so it still does **not** catch
+exceljs breakage — verify that by running the real command against a fixture.
+
+**The cheerio selectors are covered.** `parseOrdersPage` (`fetch-orders.js`) and
+`parseOrderItems` (`fetch-order-details.js`) exist as separate exported
+functions purely so the parse can be tested without a network call; the fetchers
+call them and hold nothing but request handling. They run against saved markup
+in `tests/fixtures/`:
+
+| Fixture | Stands for |
+|---|---|
+| `order-history-page.html` | `/sales/order/history/` — the eight-column table |
+| `order-detail-page.html` | `/sales/order/view/` — two `.parent-item` rows |
+| `login-page.html` | an expired session served as a **200**, which no redirect check can see |
+
+Two things to know before trusting them. They are **reconstructions, not
+captures** — no real page was ever saved, so they are built to satisfy what the
+live parser demonstrably produced (the eight Thai keys in order, an empty
+`ที่อยู่จัดส่ง` and `สั่งซื้ออีกครั้ง`, a URL for `ดูรายละเอียด`, all three real
+statuses). They pin every behaviour the parser relies on, but they cannot prove
+the live markup still looks like this; only a fresh capture does that, and
+replacing them with one is worth doing next time the session is valid.
+
+And they were verified by mutation, not by passing: each selector was broken in
+turn — table id, `thead tr th`, `th, td`, the `lg:hidden` strip, whitespace
+collapsing, text-vs-href precedence, `.parent-item`, the `>` in
+`> span.font-semibold`, `:not(.font-semibold)`, the two price indices, the
+`.price-including-tax` scope, `span.content.font-semibold`, `grid-cols-5` — and
+each break was confirmed to fail a test. Three of those originally passed
+through unnoticed, which is why the `*-rules` describe blocks exist alongside
+the page fixtures: they pin precedence rules with minimal synthetic markup that
+makes no claim about the site.
 
 ## Money
 

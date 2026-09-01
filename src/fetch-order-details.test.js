@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { getDetailUrl, extractOrderId, isCacheable, mapPool, createOrderedLog, refusesEmptyOverwrite } from './fetch-order-details.js';
+import { readFileSync } from 'fs';
+import {
+  getDetailUrl,
+  extractOrderId,
+  isCacheable,
+  mapPool,
+  createOrderedLog,
+  refusesEmptyOverwrite,
+  parseOrderItems,
+} from './fetch-order-details.js';
 
 describe('fetch-order-details getDetailUrl', () => {
   it('finds the detail URL among order object values', () => {
@@ -172,5 +181,103 @@ describe('refusesEmptyOverwrite (details)', () => {
   it('tolerates records with no items key at all', () => {
     expect(refusesEmptyOverwrite([{}], cacheOf({}))).toBe(false);
     expect(refusesEmptyOverwrite([{}], cacheOf(withItems(1)))).toBe(true);
+  });
+});
+
+/**
+ * Runs the item selectors against saved markup — see the note on
+ * `parseOrdersPage` in fetch-orders.test.js for what this fixture is and is
+ * not. Everything the parser reads here is positional inside `.parent-item`,
+ * so these tests are mostly about position: the right span, the right index.
+ */
+describe('parseOrderItems', () => {
+  const html = readFileSync('tests/fixtures/order-detail-page.html', 'utf8');
+
+  it('returns one record per .parent-item with the full item shape', () => {
+    const items = parseOrderItems(html);
+    expect(items).toHaveLength(2);
+    expect(Object.keys(items[0])).toEqual(['name', 'sku', 'price', 'quantity', 'subtotal']);
+  });
+
+  it('reads the product name from the direct-child span, not the SKU label', () => {
+    // The SKU label is also .font-semibold; only the `>` in the selector
+    // keeps 'SKU:' out of the name, and the name is what product-name.js
+    // parses every facet from.
+    const items = parseOrderItems(html);
+    expect(items[0].name).toBe(
+      '(PRE/SEP)(LN) Complete Set ขอต้อนรับสู่ห้องเรียนนิยม (เฉพาะ) ยอดคน ปี 3 เล่ม 2'
+    );
+    expect(items[0].name).not.toMatch(/SKU/);
+  });
+
+  it('takes the SKU value and skips its label', () => {
+    expect(parseOrderItems(html).map((i) => i.sku)).toEqual(['BX0948-01', 'LN0832-01P']);
+  });
+
+  it('reads unit price and subtotal from separate cells, in that order', () => {
+    // Item 2 is quantity 2, so a parser reading the wrong price span would
+    // report ฿780 as the subtotal and silently understate every total.
+    const [, second] = parseOrderItems(html);
+    expect(second.quantity).toBe('2');
+    expect(second.price).toBe('฿780.00');
+    expect(second.subtotal).toBe('฿1,560.00');
+  });
+
+  it('returns no items for a 200 login page', () => {
+    // The details fetcher's empty-overwrite guard exists for exactly this.
+    expect(parseOrderItems(readFileSync('tests/fixtures/login-page.html', 'utf8'))).toEqual([]);
+  });
+});
+
+/**
+ * Selector rules, pinned with minimal synthetic markup — statements about the
+ * parser rather than claims about the live page. Each guards a restriction
+ * that a tidying refactor would plausibly drop.
+ */
+describe('parseOrderItems selector rules', () => {
+  const row = (infoCol, tail) => `
+    <div class="parent-item"><div class="lg:grid grid-cols-5">
+      <div class="p-2 col-span-2">${infoCol}</div>${tail}
+    </div></div>`;
+
+  it('does not mistake the SKU label for the product name when no name span is present', () => {
+    // The name is read as a DIRECT child span; the SKU label is also
+    // .font-semibold but sits deeper. Dropping the `>` would name this item
+    // "SKU:" and every product-name facet would be derived from it.
+    const items = parseOrderItems(
+      row('<div class="item-options"><div class="text-sm flex"><span class="font-semibold">SKU:</span><span>LN0001-01</span></div></div>', '')
+    );
+    expect(items[0].name).toBe('');
+    expect(items[0].sku).toBe('LN0001-01');
+  });
+
+  it('reads quantity only from a span carrying both classes, not any .content span', () => {
+    // A bare .content span appears as a mobile label; matching it would put
+    // the label text where a number belongs.
+    const items = parseOrderItems(
+      row('<span class="font-semibold">ชื่อ</span>', '<div class="p-2"><span class="content">จำนวน</span><span class="content font-semibold">3</span></div>')
+    );
+    expect(items[0].quantity).toBe('3');
+  });
+
+  it('reads only prices inside .price-including-tax, ignoring other .price spans', () => {
+    // The scope is deliberate: a bare .price elsewhere in the row (a strike-
+    // through list price, a per-unit note) would otherwise be read as money
+    // and land in the totals.
+    const items = parseOrderItems(
+      row(
+        '<span class="font-semibold">ชื่อ</span>',
+        '<div class="p-2"><span class="price">฿999.00</span>' +
+          '<span class="price-including-tax"><span class="price">฿100.00</span></span>' +
+          '<span class="price-including-tax"><span class="price">฿200.00</span></span></div>'
+      )
+    );
+    expect(items[0].price).toBe('฿100.00');
+    expect(items[0].subtotal).toBe('฿200.00');
+  });
+
+  it('leaves prices empty rather than guessing when the price cells are absent', () => {
+    const items = parseOrderItems(row('<span class="font-semibold">ชื่อ</span>', ''));
+    expect(items[0]).toMatchObject({ name: 'ชื่อ', price: '', subtotal: '', quantity: '' });
   });
 });
