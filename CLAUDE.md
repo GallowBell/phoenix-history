@@ -252,10 +252,12 @@ over stdio:
   through `createSyncJob` as a child with piped stdout. The e2e test catches a
   stray write via `client.onerror` — nothing else would.
 - **No fetcher or `orders-config.js` import**, the same rule as `server.js`.
-- **No cookie in the server process.** It is launched without `--env-file`,
-  and the README warns against `ORDERS_COOKIE` in Claude Desktop's config: Node's
-  `--env-file` does not override an inherited variable, so a cookie held by the
-  server would be inherited by every refresh child and pin a dead session.
+  The e2e child gets no cookie, so such an import would exit and fail `connect`.
+- **No cookie in the server process.** It is launched without `--env-file` and
+  `delete`s any inherited `ORDERS_COOKIE` at startup: Node's `--env-file` does
+  not override an inherited variable, so a cookie from Claude Desktop's config
+  would be inherited by every refresh child and pin a dead session. Guarded
+  statically — observing the child's env would mean a live refresh.
 - **Paths resolve against the repo root**, not cwd — Claude Desktop launches
   the server from its own directory. The e2e test runs it from the temp dir
   with relative paths to `tests/fixtures/mcp-orders*.json` to prove it.
