@@ -176,3 +176,61 @@ export function fillMonths(rows) {
   }
   return out;
 }
+
+export function yearKey(date) {
+  return date ? String(date.year) : null;
+}
+
+/** `2026-Q3` — calendar quarters, Q1 = Jan–Mar. Sorts lexically like monthKey. */
+export function quarterKey(date) {
+  return date ? `${date.year}-Q${Math.ceil(date.month / 3)}` : null;
+}
+
+export const PERIOD_KEYS = { year: yearKey, quarter: quarterKey, month: monthKey };
+
+const STEP_MONTHS = { year: 12, quarter: 3, month: 1 };
+
+/** Turn any period key back into the first `{year, month}` it covers. */
+function keyStart(key) {
+  const [year, rest] = String(key).split('-');
+  if (rest === undefined) return { year: Number(year), month: 1 };
+  if (rest.startsWith('Q')) return { year: Number(year), month: (Number(rest.slice(1)) - 1) * 3 + 1 };
+  return { year: Number(year), month: Number(rest) };
+}
+
+/**
+ * Every key from `from` to `to` inclusive, so a quiet period still gets a row —
+ * the same reasoning as `fillMonths`, for any granularity.
+ */
+export function periodKeys(by, from, to) {
+  const keyOf = PERIOD_KEYS[by];
+  const out = [];
+  const cursor = keyStart(from);
+  while (keyOf(cursor) <= to) {
+    out.push(keyOf(cursor));
+    cursor.month += STEP_MONTHS[by];
+    while (cursor.month > 12) { cursor.month -= 12; cursor.year++; }
+  }
+  return out;
+}
+
+/**
+ * Books bought per period, from the detail file: item quantities, with
+ * cancelled orders and giveaways left out. A Complete Set counts as one —
+ * in this data it is one volume plus extras, not a bundle of volumes.
+ */
+export function groupBooks(details, keyOf) {
+  const groups = new Map();
+  for (const order of details ?? []) {
+    if (isCancelled(order)) continue;
+    const key = keyOf(parseOrderDate(order[DATE_KEY]));
+    if (key == null) continue;
+    for (const item of order.items ?? []) {
+      if (parseProductName(item?.name).isFreebie) continue;
+      groups.set(key, (groups.get(key) ?? 0) + (Number(item?.quantity) || 0));
+    }
+  }
+  return [...groups.entries()]
+    .map(([key, books]) => ({ key, books }))
+    .sort((a, b) => a.key.localeCompare(b.key));
+}
