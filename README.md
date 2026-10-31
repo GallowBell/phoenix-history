@@ -448,7 +448,7 @@ Add it to `%APPDATA%\Claude\claude_desktop_config.json`, then restart Claude Des
 
 Adjust both paths to where Node and this repo live on your machine.
 
-> **The cookie lives only in `.env`.** Each refresh reads it fresh from there, so a renewed cookie is picked up without restarting Claude Desktop. An `ORDERS_COOKIE` in the config's `env` is ignored on purpose: Node would otherwise let it outrank `.env` and pin a dead session.
+> **Keep the cookie in `.env`, not in the config.** Each refresh reads it fresh from `.env`, so a renewed cookie is picked up without restarting Claude Desktop. An `ORDERS_COOKIE` in the config's `env` is only used while `.env` has none.
 
 When `refresh` reports that the session expired, run `npm run orders` in a terminal in this repo — it asks for a new `PHPSESSID`, checks it and saves it to `.env` — then ask Claude to refresh again. Never paste the cookie into the chat.
 

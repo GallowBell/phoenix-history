@@ -10,11 +10,10 @@
  * - **No fetcher or `orders-config.js` import**, for the same reason as
  *   `server.js`: it exits at import time without a cookie, and three of the
  *   four tools need none.
- * - **No cookie in this process.** It is launched without `--env-file` and
- *   drops any inherited `ORDERS_COOKIE` below. The refresh child loads `.env`
- *   itself on every run — and Node's `--env-file` does not override an
- *   inherited variable, so a cookie held here would pin the old one and
- *   ignore every renewal.
+ * - **The cookie comes from `.env`, read fresh by each refresh.** The server
+ *   is launched without `--env-file`; the refresh child loads `.env` itself,
+ *   and `createSyncJob` drops an inherited `ORDERS_COOKIE` whenever `.env`
+ *   holds a usable one, so a renewal lands without restarting Claude Desktop.
  * - **Paths resolve against the repo root**, not cwd: Claude Desktop launches
  *   the server from its own directory.
  */
@@ -26,10 +25,6 @@ import { z } from 'zod';
 import { readJson } from './stats-orders.js';
 import { createSyncJob } from './sync-job.js';
 import { SEARCH_FIELDS, searchOrders, collectionReport, spendReport, createRefresh } from './mcp-tools.js';
-
-// Enforced, not just documented: a cookie set in Claude Desktop's config would
-// otherwise be inherited by every refresh child and outrank `.env`.
-delete process.env.ORDERS_COOKIE;
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const ORDERS = ['ORDERS_OUTPUT_FILE', 'orders.json'];

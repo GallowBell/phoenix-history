@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { fileURLToPath } from 'url';
 import { mkdtemp, writeFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
@@ -144,8 +144,10 @@ describe('createSyncJob', () => {
   });
 
   describe('the cookie the child runs with', () => {
-    // tests/setup.js exports ORDERS_COOKIE=test-cookie, which stands in for the
-    // value server.js inherited from `--env-file=.env` when it started.
+    // Stands in for the value server.js inherited from `--env-file=.env` when it
+    // started. Stubbed rather than taken from tests/setup.js, whose `??=` lets a
+    // cookie exported in the shell through — and into the test output.
+    beforeEach(() => vi.stubEnv('ORDERS_COOKIE', 'inherited-cookie'));
     let dir;
     const cookieIn = async (envText) => {
       dir = await mkdtemp(join(tmpdir(), 'sync-job-'));
@@ -154,7 +156,10 @@ describe('createSyncJob', () => {
       job.start('cookie');
       return (await job.finished()).lines;
     };
-    afterEach(() => rm(dir, { recursive: true, force: true }));
+    afterEach(async () => {
+      vi.unstubAllEnvs();
+      await rm(dir, { recursive: true, force: true });
+    });
 
     it('is the one renewed in .env, not the one this process inherited', async () => {
       // Node's --env-file never overrides an inherited variable, so without the
@@ -163,7 +168,16 @@ describe('createSyncJob', () => {
     });
 
     it('is the inherited one when .env holds no usable cookie', async () => {
-      expect(await cookieIn('ORDERS_COOKIE="PHPSESSID=your_session_id_here"\n')).toEqual(['cookie: test-cookie']);
+      expect(await cookieIn('ORDERS_COOKIE="PHPSESSID=your_session_id_here"\n')).toEqual(['cookie: inherited-cookie']);
+    });
+
+    it('does not leave the job stuck running when .env is missing', async () => {
+      // childEnv reads .env after start() has marked the job running; a throw
+      // there would answer 409 to every later sync until a restart.
+      dir = await mkdtemp(join(tmpdir(), 'sync-job-'));
+      const job = makeJob({ envFile: 'missing.env', cwd: dir, commands: new Set(['cookie']) });
+      job.start('cookie');
+      expect((await job.finished()).status).toBe('failed');
     });
   });
 });

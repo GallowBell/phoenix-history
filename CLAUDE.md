@@ -244,8 +244,8 @@ stdio — `search`, `collection`, `spend`, `refresh` — with the logic in
 `src/mcp-tools.js` (data in, plain objects out) built on `find-orders.js`,
 `collection-report.js`, `stats-report.js` and `sync-job.js`, so its answers
 match the CLI and the UI. Design: `docs/specs/2026-10-31-mcp-server-design.md`.
-Four rules, each guarded by `mcp-server.test.js`, which drives the real server
-over stdio:
+Four rules, guarded by `mcp-server.test.js` (it drives the real server over
+stdio) unless noted:
 
 - **stdout is the wire.** One stray `console.log` in the server process
   corrupts the session. The scrapers print progress, so `refresh` runs them
@@ -253,11 +253,11 @@ over stdio:
   stray write via `client.onerror` — nothing else would.
 - **No fetcher or `orders-config.js` import**, the same rule as `server.js`.
   The e2e child gets no cookie, so such an import would exit and fail `connect`.
-- **No cookie in the server process.** It is launched without `--env-file` and
-  `delete`s any inherited `ORDERS_COOKIE` at startup: Node's `--env-file` does
-  not override an inherited variable, so a cookie from Claude Desktop's config
-  would be inherited by every refresh child and pin a dead session. Guarded
-  statically — observing the child's env would mean a live refresh.
+- **The cookie comes from `.env`.** The server is launched without
+  `--env-file`; each refresh child loads `.env` itself, and `childEnv()` in
+  `sync-job.js` (see Sync below) drops an inherited `ORDERS_COOKIE` whenever
+  `.env` holds a usable one, so a renewal lands without restarting Claude
+  Desktop. Guarded by `sync-job.test.js`.
 - **Paths resolve against the repo root**, not cwd — Claude Desktop launches
   the server from its own directory. The e2e test runs it from the temp dir
   with relative paths to `tests/fixtures/mcp-orders*.json` to prove it.
@@ -310,7 +310,9 @@ already in the pipeline rather than reimplementing them behind a route.
   sync after a renewal (cookie form or `npm run orders`) used to send the dead
   cookie until `npm start` restarted. `childEnv()` in `sync-job.js` drops the
   inherited value whenever `.env` holds a usable cookie; an exported cookie with
-  none in `.env` still passes through. It reads `.env` with `hasUsableCookie`
+  none in `.env` still passes through. This deliberately differs from the CLI,
+  where an exported cookie wins (`ensure-cookie.js` `run()`): under the server
+  the cookie form could otherwise never take effect. It reads `.env` with `hasUsableCookie`
   from `src/env-cookie.js`, which is split out of `ensure-cookie.js` because that
   module imports axios and cheerio — importing it from `sync-job.js` made every
   `npm start` and MCP launch ~8s slower on /mnt/c.
@@ -439,9 +441,11 @@ test stayed green.
 As of 2026-10-31, `npm audit` reports only moderate advisories, all in the
 exceljs → archiver chain (`archiver`, `archiver-utils`, `zip-stream`,
 `readdir-glob`, `glob`, `minimatch`, plus `rimraf` under unzipper). npm's only
-fix is downgrading exceljs to 4.1.1 — see above. They are not reachable here:
-the `minimatch`/`glob` bugs need attacker-supplied glob patterns, and exceljs
-only hands archiver in-memory buffers. Overriding them is not an option either —
-glob ≥13 and minimatch ≥9 dropped the APIs archiver 5 calls. Prefer targeted
+fix is an exceljs downgrade (today it proposes 4.1.1) behind `--force`, ruled out
+above. They are not reachable here: the `minimatch`/`glob` bugs need
+attacker-supplied glob patterns, `generateBuffer()` zips through JSZip, and
+archiver is only used by exceljs's streaming WorkbookWriter, which this project
+does not use. Overriding them is untested and unnecessary (glob ≥9 would also
+break rimraf 2's callback-style `glob()` call). Prefer targeted
 `npm update <pkg>` over plain `npm audit fix`, which also "fixes" `rimraf` by
-downgrading it to a 2013 release while `glob` stays installed anyway.
+downgrading it to a 2014 release while `glob` stays installed anyway.

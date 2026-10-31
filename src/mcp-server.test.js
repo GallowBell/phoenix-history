@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { readFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -73,14 +72,6 @@ describe('mcp-server over stdio', () => {
     expect(r.isError).toBe(true);
     expect(r.content[0].text).toContain('refresh');
     expect((await missing.client.listTools()).tools).toHaveLength(4);
-  });
-
-  it('drops an inherited ORDERS_COOKIE so every refresh reads .env', async () => {
-    // Node's --env-file does not override an inherited variable: a cookie set in
-    // Claude Desktop's config would pin every refresh child to it, and a renewed
-    // .env would be ignored. Static, like StatsPanel.test.jsx's import guard —
-    // observing the child's env would mean calling refresh against the live site.
-    expect(await readFile(SERVER, 'utf-8')).toMatch(/^delete process\.env\.ORDERS_COOKIE;$/m);
   });
 
   it('never writes anything but protocol messages to stdout', () => {
