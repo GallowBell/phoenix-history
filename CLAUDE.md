@@ -435,3 +435,13 @@ test stayed green.
 ## Dependencies
 
 `package.json` pins `uuid` to `^11.1.1` via an `overrides` block on exceljs, resolving advisory GHSA-w5hq-g745-h8pq. Do not run `npm audit fix --force` — it "resolves" this by downgrading exceljs from 4.x to 3.x, which is a major version backwards and still ships a vulnerable uuid. Keep exceljs on `^4.4.0` and the override in place.
+
+As of 2026-10-31, `npm audit` reports only moderate advisories, all in the
+exceljs → archiver chain (`archiver`, `archiver-utils`, `zip-stream`,
+`readdir-glob`, `glob`, `minimatch`, plus `rimraf` under unzipper). npm's only
+fix is downgrading exceljs to 4.1.1 — see above. They are not reachable here:
+the `minimatch`/`glob` bugs need attacker-supplied glob patterns, and exceljs
+only hands archiver in-memory buffers. Overriding them is not an option either —
+glob ≥13 and minimatch ≥9 dropped the APIs archiver 5 calls. Prefer targeted
+`npm update <pkg>` over plain `npm audit fix`, which also "fixes" `rimraf` by
+downgrading it to a 2013 release while `glob` stays installed anyway.
