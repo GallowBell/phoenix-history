@@ -20,6 +20,7 @@ npm run excel             # write orders.xlsx
 npm run find [key] <value># search scraped data offline (default key: name)
 npm run stats             # spend by year/month, top series, discounts (offline)
 npm run collection        # volumes owned per series, and the gaps (offline)
+npm run mcp               # MCP server on stdio, for Claude Desktop (see README)
 npm test                  # vitest run
 npm run test:watch
 npm run test:coverage     # v8 coverage over src/**, client/src/**, server.js
@@ -237,6 +238,32 @@ Notes worth keeping:
 **Scraper conventions.** Both fetchers send a full hardcoded Chrome header set plus the session cookie and both run with redirects disabled. `fetch-orders.js` treats a missing `#my-orders-table`, a page whose first order number repeats page 1, or a 3xx **on page >1** as "past the last page" — a 3xx on page 1 is an expired session instead (see Environment). `fetch-order-details.js` does not sleep between requests; it relies on `CONCURRENCY = 4` for pacing. Both parse with cheerio against site-specific class names — selector breakage is the expected failure mode when the site changes.
 
 **Server.** `server.js` exports the Express app and only calls `listen` when `NODE_ENV !== 'test'`, so tests drive it with supertest. It binds `127.0.0.1` only. Routes just read the JSON files and 404 with a message naming the npm script to run. `/api/excel/download` imports `generateBuffer` from `export-excel.js` lazily.
+
+**MCP server.** `src/mcp-server.js` serves four tools to Claude Desktop over
+stdio — `search`, `collection`, `spend`, `refresh` — with the logic in
+`src/mcp-tools.js` (data in, plain objects out) built on `find-orders.js`,
+`collection-report.js`, `stats-report.js` and `sync-job.js`, so its answers
+match the CLI and the UI. Design: `docs/specs/2026-10-31-mcp-server-design.md`.
+Four rules, each guarded by `mcp-server.test.js`, which drives the real server
+over stdio:
+
+- **stdout is the wire.** One stray `console.log` in the server process
+  corrupts the session. The scrapers print progress, so `refresh` runs them
+  through `createSyncJob` as a child with piped stdout. The e2e test catches a
+  stray write via `client.onerror` — nothing else would.
+- **No fetcher or `orders-config.js` import**, the same rule as `server.js`.
+- **No cookie in the server process.** It is launched without `--env-file`,
+  and the README warns against `ORDERS_COOKIE` in Claude Desktop's config: Node's
+  `--env-file` does not override an inherited variable, so a cookie held by the
+  server would be inherited by every refresh child and pin a dead session.
+- **Paths resolve against the repo root**, not cwd — Claude Desktop launches
+  the server from its own directory. The e2e test runs it from the temp dir
+  with relative paths to `tests/fixtures/mcp-orders*.json` to prove it.
+
+Book counts (`groupBooks` in `stats-report.js`) are item quantities minus
+cancelled orders and `isFreebie` items; a Complete Set counts as one (in this
+data it is one volume plus extras). `spend` periods are zero-filled at every
+granularity by `periodKeys`, and a `year` range is cut at the current month.
 
 **Sync from the UI.** The Sync button runs the scrape without a terminal. The
 rule that shapes the whole design: **`server.js` must never import the
