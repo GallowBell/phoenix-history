@@ -45,7 +45,7 @@ export function bar(value, max, width = 24) {
   return '█'.repeat(Math.max(1, Math.round((value / max) * width)));
 }
 
-async function readJson(path) {
+export async function readJson(path) {
   try {
     const parsed = JSON.parse(await readFile(resolve(path), 'utf-8'));
     return Array.isArray(parsed) ? parsed : [];

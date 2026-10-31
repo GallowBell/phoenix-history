@@ -15,9 +15,34 @@
  * point leaves the JSON on disk untouched.
  */
 import { spawn } from 'child_process';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { fileURLToPath } from 'url';
+import { hasUsableCookie } from './env-cookie.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
+
+/**
+ * The child's environment, minus the inherited `ORDERS_COOKIE` whenever
+ * `.env` holds a usable one.
+ *
+ * Node's `--env-file` never overrides an inherited variable, and `server.js`
+ * itself runs under `--env-file=.env` — so without this the cookie the server
+ * started with outranks every renewal written to `.env` since (the UI's cookie
+ * form, or `npm run orders` in a terminal), and every sync after a renewal
+ * fails as expired until `npm start` is restarted. A cookie exported with no
+ * usable one in `.env` still passes through.
+ */
+function childEnv(envFile, cwd) {
+  const env = { ...process.env };
+  if (!envFile) return env;
+  try {
+    if (hasUsableCookie(readFileSync(resolve(cwd, envFile), 'utf-8'))) delete env.ORDERS_COOKIE;
+  } catch {
+    // No readable .env: keep whatever was inherited.
+  }
+  return env;
+}
 
 /** The only commands this may run. Never interpolated into a shell. */
 export const SYNC_COMMANDS = new Set(['orders', 'order-details']);
@@ -148,7 +173,7 @@ export function createSyncJob({
         command,
         ...(force ? ['--force'] : []),
       ];
-      child = spawnFn(node, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+      child = spawnFn(node, args, { cwd, env: childEnv(envFile, cwd), stdio: ['ignore', 'pipe', 'pipe'] });
 
       const out = lineReader();
       const err = lineReader();

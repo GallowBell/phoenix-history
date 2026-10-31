@@ -4,6 +4,7 @@ import { resolve } from 'path';
 import { fileURLToPath } from 'url';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { readCookie, hasUsableCookie } from './env-cookie.js';
 
 // This module runs *before* the commands that need a cookie, so it must not
 // import orders-config.js — that exits the process when ORDERS_COOKIE is
@@ -14,36 +15,9 @@ const EXAMPLE_PATH = resolve('.env.example');
 const DEFAULT_URL = 'https://www.phoenixnext.com/sales/order/history/?limit=50';
 const MAX_ATTEMPTS = 3;
 
-// Values shipped in .env.example — present, but not a real cookie.
-const PLACEHOLDERS = ['your_session_id_here', 'your_cookie_string_here'];
-
-/**
- * Read the active (uncommented) ORDERS_COOKIE assignment from .env text.
- * Stops at the closing quote, and drops a trailing `# comment` on an unquoted
- * value — otherwise `ORDERS_COOKIE="" # was PHPSESSID=old` reads as a cookie.
- */
-export function readCookie(envText) {
-  const line = envText.match(/^ORDERS_COOKIE[ \t]*=[ \t]*(.*)$/m);
-  if (!line) return null;
-
-  const value = line[1].trim();
-  for (const quote of ['"', "'"]) {
-    if (value.startsWith(quote)) {
-      const end = value.indexOf(quote, 1);
-      return end === -1 ? value.slice(1) : value.slice(1, end);
-    }
-  }
-
-  return value.replace(/(^|\s)#.*$/, '').trim();
-}
-
-/** True when .env already holds a cookie worth trying. */
-export function hasUsableCookie(envText) {
-  const value = readCookie(envText);
-  if (!value || !value.trim()) return false;
-  if (PLACEHOLDERS.some((p) => value.includes(p))) return false;
-  return /PHPSESSID=[^;\s]+/.test(value);
-}
+// Re-exported for existing importers; `export … from` alone would not bind
+// them here, and run() below uses hasUsableCookie.
+export { readCookie, hasUsableCookie };
 
 /**
  * Pull the session id out of whatever the user pasted — a bare id, a

@@ -20,6 +20,7 @@ npm run excel             # write orders.xlsx
 npm run find [key] <value># search scraped data offline (default key: name)
 npm run stats             # spend by year/month, top series, discounts (offline)
 npm run collection        # volumes owned per series, and the gaps (offline)
+npm run mcp               # MCP server on stdio, for Claude Desktop (see README)
 npm test                  # vitest run
 npm run test:watch
 npm run test:coverage     # v8 coverage over src/**, client/src/**, server.js
@@ -238,6 +239,34 @@ Notes worth keeping:
 
 **Server.** `server.js` exports the Express app and only calls `listen` when `NODE_ENV !== 'test'`, so tests drive it with supertest. It binds `127.0.0.1` only. Routes just read the JSON files and 404 with a message naming the npm script to run. `/api/excel/download` imports `generateBuffer` from `export-excel.js` lazily.
 
+**MCP server.** `src/mcp-server.js` serves four tools to Claude Desktop over
+stdio — `search`, `collection`, `spend`, `refresh` — with the logic in
+`src/mcp-tools.js` (data in, plain objects out) built on `find-orders.js`,
+`collection-report.js`, `stats-report.js` and `sync-job.js`, so its answers
+match the CLI and the UI. Design: `docs/specs/2026-10-31-mcp-server-design.md`.
+Four rules, guarded by `mcp-server.test.js` (it drives the real server over
+stdio) unless noted:
+
+- **stdout is the wire.** One stray `console.log` in the server process
+  corrupts the session. The scrapers print progress, so `refresh` runs them
+  through `createSyncJob` as a child with piped stdout. The e2e test catches a
+  stray write via `client.onerror` — nothing else would.
+- **No fetcher or `orders-config.js` import**, the same rule as `server.js`.
+  The e2e child gets no cookie, so such an import would exit and fail `connect`.
+- **The cookie comes from `.env`.** The server is launched without
+  `--env-file`; each refresh child loads `.env` itself, and `childEnv()` in
+  `sync-job.js` (see Sync below) drops an inherited `ORDERS_COOKIE` whenever
+  `.env` holds a usable one, so a renewal lands without restarting Claude
+  Desktop. Guarded by `sync-job.test.js`.
+- **Paths resolve against the repo root**, not cwd — Claude Desktop launches
+  the server from its own directory. The e2e test runs it from the temp dir
+  with relative paths to `tests/fixtures/mcp-orders*.json` to prove it.
+
+Book counts (`groupBooks` in `stats-report.js`) are item quantities minus
+cancelled orders and `isFreebie` items; a Complete Set counts as one (in this
+data it is one volume plus extras). `spend` periods are zero-filled at every
+granularity by `periodKeys`, and a `year` range is cut at the current month.
+
 **Sync from the UI.** The Sync button runs the scrape without a terminal. The
 rule that shapes the whole design: **`server.js` must never import the
 fetchers.** `orders-config.js` calls `process.exit(1)` at *import* time when the
@@ -275,6 +304,18 @@ already in the pipeline rather than reimplementing them behind a route.
   route alone. The value is never logged and never echoed back. It travels over
   HTTP by deliberate choice (the server is `127.0.0.1`-only and the value is
   already plain text in `.env`); revisit if the bind address ever changes.
+- **A renewed `.env` cookie outranks the one the server started with.**
+  `server.js` runs under `--env-file=.env`, so its `ORDERS_COOKIE` is frozen at
+  startup, and Node's `--env-file` never overrides an inherited variable — every
+  sync after a renewal (cookie form or `npm run orders`) used to send the dead
+  cookie until `npm start` restarted. `childEnv()` in `sync-job.js` drops the
+  inherited value whenever `.env` holds a usable cookie; an exported cookie with
+  none in `.env` still passes through. This deliberately differs from the CLI,
+  where an exported cookie wins (`ensure-cookie.js` `run()`): under the server
+  the cookie form could otherwise never take effect. It reads `.env` with `hasUsableCookie`
+  from `src/env-cookie.js`, which is split out of `ensure-cookie.js` because that
+  module imports axios and cheerio — importing it from `sync-job.js` made every
+  `npm start` and MCP launch ~8s slower on /mnt/c.
 - Progress is SSE on `/api/sync/stream`, replaying the ordered lines the
   scrapers already print. `/api/data-status` reports counts and mtimes for the
   "N orders · 2h ago" line.
@@ -396,3 +437,15 @@ test stayed green.
 ## Dependencies
 
 `package.json` pins `uuid` to `^11.1.1` via an `overrides` block on exceljs, resolving advisory GHSA-w5hq-g745-h8pq. Do not run `npm audit fix --force` — it "resolves" this by downgrading exceljs from 4.x to 3.x, which is a major version backwards and still ships a vulnerable uuid. Keep exceljs on `^4.4.0` and the override in place.
+
+As of 2026-10-31, `npm audit` reports only moderate advisories, all in the
+exceljs → archiver chain (`archiver`, `archiver-utils`, `zip-stream`,
+`readdir-glob`, `glob`, `minimatch`, plus `rimraf` under unzipper). npm's only
+fix is an exceljs downgrade (today it proposes 4.1.1) behind `--force`, ruled out
+above. They are not reachable here: the `minimatch`/`glob` bugs need
+attacker-supplied glob patterns, `generateBuffer()` zips through JSZip, and
+archiver is only used by exceljs's streaming WorkbookWriter, which this project
+does not use. Overriding them is untested and unnecessary (glob ≥9 would also
+break rimraf 2's callback-style `glob()` call). Prefer targeted
+`npm update <pkg>` over plain `npm audit fix`, which also "fixes" `rimraf` by
+downgrading it to a 2014 release while `glob` stays installed anyway.

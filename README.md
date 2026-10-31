@@ -422,6 +422,40 @@ Starts only the Express API on `http://localhost:3001`.
 
 ---
 
+## Claude Desktop (MCP)
+
+Ask Claude Desktop about your orders in plain words — "did I buy volume 2 of X yet?", "spend per quarter this year", "graph the books I bought this year". `src/mcp-server.js` is an MCP server over stdio with four tools:
+
+| Tool | Answers |
+|---|---|
+| `search` | Find orders by book name, SKU, order number, order id or discount code |
+| `collection` | Which volumes of a series you own, and which are missing in between |
+| `spend` | Baht spent, orders and books per year, quarter or month (Claude draws the chart) |
+| `refresh` | Fetch the latest orders from phoenixnext.com with the cookie in `.env` |
+
+Add it to `%APPDATA%\Claude\claude_desktop_config.json`, then restart Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "phoenix-history": {
+      "command": "C:\\Program Files\\nodejs\\node.exe",
+      "args": ["C:\\NodeJS\\phoenix-history\\src\\mcp-server.js"]
+    }
+  }
+}
+```
+
+Adjust both paths to where Node and this repo live on your machine.
+
+> **Keep the cookie in `.env`, not in the config.** Each refresh reads it fresh from `.env`, so a renewed cookie is picked up without restarting Claude Desktop. An `ORDERS_COOKIE` in the config's `env` is only used while `.env` has none.
+
+When `refresh` reports that the session expired, run `npm run orders` in a terminal in this repo — it asks for a new `PHPSESSID`, checks it and saves it to `.env` — then ask Claude to refresh again. Never paste the cookie into the chat.
+
+`npm run mcp` starts the same server by hand, which is only useful for debugging: it waits silently for an MCP client on stdin.
+
+---
+
 ## Typical workflow
 
 ```
@@ -446,6 +480,8 @@ Starts only the Express API on `http://localhost:3001`.
 │   ├── fetch-order-details.js # Scrapes item details per order
 │   ├── sum-orders.js         # Sums total spend
 │   ├── find-orders.js        # Searches scraped orders/items
+│   ├── mcp-server.js         # MCP server for Claude Desktop (stdio)
+│   ├── mcp-tools.js          # The MCP tools' logic
 │   └── export-excel.js       # Generates Excel file
 ├── client/
 │   └── src/
