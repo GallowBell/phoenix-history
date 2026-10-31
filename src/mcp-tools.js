@@ -9,8 +9,8 @@
 import { findOrders, resolveField } from './find-orders.js';
 import { collectSeries, collectionSummary } from './collection-report.js';
 import { seriesKey } from './product-name.js';
-import { parseOrderDate, DATE_KEY } from './stats-report.js';
-import { isCancelled, PRICE_KEY, STATUS_KEY } from './orders-total.js';
+import { parseOrderDate, DATE_KEY, groupSpend, groupBooks, periodKeys, PERIOD_KEYS } from './stats-report.js';
+import { isCancelled, summarise, PRICE_KEY, STATUS_KEY } from './orders-total.js';
 
 const ORDER_NUMBER_KEY = 'หมายเลขคำสั่งซื้อ';
 
@@ -78,4 +78,65 @@ export function collectionReport(details, { series } = {}) {
   const result = { series: matches, caveat: COLLECTION_CAVEAT };
   if (!matches.length) result.hint = `No series matched "${q}". Call collection with no series to list every title.`;
   return result;
+}
+
+/** Baht to the satang, so a sum never reads `300.29999999999995`. */
+const round = (x) => Math.round(x * 100) / 100;
+
+/** The first and last key of a calendar year at each granularity. */
+const YEAR_BOUNDS = {
+  year: (y) => [`${y}`, `${y}`],
+  quarter: (y) => [`${y}-Q1`, `${y}-Q4`],
+  month: (y) => [`${y}-01`, `${y}-12`],
+};
+
+/**
+ * Spend, orders and books per year, quarter or month. Money comes from the
+ * order list via `groupSpend`, as `npm run stats` does; books from the detail
+ * file via `groupBooks`. Every period in range gets a row — a quiet month is a
+ * fact a chart must show, not a gap to close up.
+ *
+ * With `year`, the range is that calendar year, cut at `now` for the current
+ * one so the chart does not run on into months that have not happened.
+ */
+export function spendReport(orders, details, { by, year, now = new Date() }) {
+  const keyOf = PERIOD_KEYS[by];
+  const inYear = (o) => year == null || parseOrderDate(o?.[DATE_KEY])?.year === year;
+  const yearOrders = (orders ?? []).filter(inYear);
+  const yearDetails = (details ?? []).filter(inYear);
+
+  const money = new Map(groupSpend(yearOrders, keyOf).map((r) => [r.key, r]));
+  const books = new Map(groupBooks(yearDetails, keyOf).map((r) => [r.key, r.books]));
+
+  let range = null;
+  if (year != null) {
+    const [first, last] = YEAR_BOUNDS[by](year);
+    range = [first, year === now.getFullYear() ? keyOf({ year, month: now.getMonth() + 1 }) : last];
+  } else {
+    const keys = [...money.keys(), ...books.keys()].sort();
+    if (keys.length) range = [keys[0], keys.at(-1)];
+  }
+
+  const periods = range
+    ? periodKeys(by, ...range).map((period) => ({
+      period,
+      spent: round(money.get(period)?.spent ?? 0),
+      orders: money.get(period)?.orders ?? 0,
+      books: books.get(period) ?? 0,
+    }))
+    : [];
+
+  const total = summarise(yearOrders);
+  return {
+    by,
+    year: year ?? null,
+    periods,
+    totals: {
+      spent: round(total.spent),
+      orders: periods.reduce((n, p) => n + p.orders, 0),
+      books: periods.reduce((n, p) => n + p.books, 0),
+      cancelledOrders: total.cancelledCount,
+      cancelledAmount: round(total.cancelledAmount),
+    },
+  };
 }

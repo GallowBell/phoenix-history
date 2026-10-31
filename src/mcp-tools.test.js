@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { searchOrders, collectionReport, COLLECTION_CAVEAT } from './mcp-tools.js';
+import { searchOrders, collectionReport, COLLECTION_CAVEAT, spendReport } from './mcp-tools.js';
 import { CANCELLED_STATUS, DELIVERED_STATUS } from './orders-total.js';
 
 const SERIES = '(LN) ขอต้อนรับสู่ห้องเรียนนิยม (เฉพาะ) ยอดคน ปี 2';
@@ -77,5 +77,45 @@ describe('collectionReport', () => {
 
   it('hints when nothing matched', () => {
     expect(collectionReport(details, { series: 'nope' }).hint).toContain('Call collection with no series');
+  });
+});
+
+describe('spendReport', () => {
+  const orders = [
+    { 'วันที่ซื้อ': '2/3/26 2 มีนาคม 2026', 'ราคาสุทธิ': '฿100.10', 'สถานะ': DELIVERED_STATUS },
+    { 'วันที่ซื้อ': '9/8/26 9 สิงหาคม 2026', 'ราคาสุทธิ': '฿200.20', 'สถานะ': DELIVERED_STATUS },
+    { 'วันที่ซื้อ': '10/8/26 10 สิงหาคม 2026', 'ราคาสุทธิ': '฿300.00', 'สถานะ': CANCELLED_STATUS },
+  ];
+  const details = orders.map((o, i) => ({ ...o, items: [{ name: `(LN) Series ${i} เล่ม 1`, quantity: '1' }] }));
+  const now = new Date(2026, 9, 31); // Oct 2026
+
+  it('fills every month of the current year up to now', () => {
+    const r = spendReport(orders, details, { by: 'month', year: 2026, now });
+    expect(r.periods.map((p) => p.period)).toEqual([
+      '2026-01', '2026-02', '2026-03', '2026-04', '2026-05',
+      '2026-06', '2026-07', '2026-08', '2026-09', '2026-10',
+    ]);
+    expect(r.periods[0]).toEqual({ period: '2026-01', spent: 0, orders: 0, books: 0 });
+    expect(r.periods[2]).toEqual({ period: '2026-03', spent: 100.1, orders: 1, books: 1 });
+  });
+
+  it('returns twelve zero months for a year with no orders', () => {
+    const r = spendReport(orders, details, { by: 'month', year: 2018, now });
+    expect(r.periods).toHaveLength(12);
+    expect(r.totals).toMatchObject({ spent: 0, orders: 0, books: 0 });
+  });
+
+  it('keeps quiet quarters as zero rows', () => {
+    const r = spendReport(orders, details, { by: 'quarter', now });
+    expect(r.periods.map((p) => [p.period, p.orders])).toEqual([['2026-Q1', 1], ['2026-Q2', 0], ['2026-Q3', 1]]);
+  });
+
+  it('reports cancelled money beside spent, never inside it', () => {
+    expect(spendReport(orders, details, { by: 'year', now }).totals)
+      .toMatchObject({ spent: 300.3, cancelledOrders: 1, cancelledAmount: 300 });
+  });
+
+  it('has no float drift', () => {
+    expect(spendReport(orders, details, { by: 'year', now }).periods[0].spent).toBe(300.3); // 100.1 + 200.2 is 300.29999999999995 unrounded
   });
 });
