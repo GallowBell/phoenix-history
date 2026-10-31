@@ -1,5 +1,7 @@
-import { describe, it, expect } from 'vitest';
-import { searchOrders, collectionReport, COLLECTION_CAVEAT, spendReport } from './mcp-tools.js';
+import { describe, it, expect, vi } from 'vitest';
+import { fileURLToPath } from 'url';
+import { searchOrders, collectionReport, COLLECTION_CAVEAT, spendReport, createRefresh } from './mcp-tools.js';
+import { createSyncJob } from './sync-job.js';
 import { CANCELLED_STATUS, DELIVERED_STATUS } from './orders-total.js';
 
 const SERIES = '(LN) ขอต้อนรับสู่ห้องเรียนนิยม (เฉพาะ) ยอดคน ปี 2';
@@ -117,5 +119,53 @@ describe('spendReport', () => {
 
   it('has no float drift', () => {
     expect(spendReport(orders, details, { by: 'year', now }).periods[0].spent).toBe(300.3); // 100.1 + 200.2 is 300.29999999999995 unrounded
+  });
+});
+
+describe('createRefresh', () => {
+  const SCRIPT = fileURLToPath(new URL('../tests/fixtures/fake-scrape.mjs', import.meta.url));
+  // envFile: null keeps `--env-file` off the argv, so these never depend on .env.
+  const makeJob = () => createSyncJob({ script: SCRIPT, envFile: null, commands: new Set(['ok', 'expired', 'fail']) });
+  const counts = vi.fn(async () => ({ orders: 3, details: 3 }));
+  const root = '/repo';
+
+  it('runs both steps and reports counts', async () => {
+    const r = await createRefresh({ job: makeJob(), counts, root, steps: ['ok', 'ok'] })();
+    expect(r).toMatchObject({
+      status: 'done',
+      steps: [{ command: 'ok', status: 'done' }, { command: 'ok', status: 'done' }],
+      before: { orders: 3 },
+      after: { orders: 3 },
+    });
+    expect(r.output).toBeUndefined();
+  });
+
+  it('does not run the second step when the first fails', async () => {
+    const r = await createRefresh({ job: makeJob(), counts, root, steps: ['fail', 'ok'] })();
+    expect(r.status).toBe('failed');
+    expect(r.steps).toHaveLength(1);
+    expect(r.output).toContain('Error: something else broke');
+  });
+
+  it('tells the user how to renew an expired cookie', async () => {
+    const r = await createRefresh({ job: makeJob(), counts, root, steps: ['ok', 'expired'] })();
+    expect(r.status).toBe('expired');
+    expect(r.message).toContain('Run `npm run orders` in a terminal in /repo');
+  });
+
+  it('joins a run already in flight instead of starting another', async () => {
+    const refresh = createRefresh({ job: makeJob(), counts, root, steps: ['ok'] });
+    const a = refresh();
+    expect(refresh()).toBe(a);
+    await a;
+    const c = refresh();
+    expect(c).not.toBe(a);
+    await c;
+  });
+
+  it('streams progress lines', async () => {
+    const lines = [];
+    await createRefresh({ job: makeJob(), counts, root, steps: ['ok'] })({ onLine: (t) => lines.push(t) });
+    expect(lines).toContain('Fetching page 1…');
   });
 });

@@ -140,3 +140,46 @@ export function spendReport(orders, details, { by, year, now = new Date() }) {
     },
   };
 }
+
+const OUTPUT_LINES = 20;
+
+/**
+ * `refresh` for Claude: the scrapers run the way the Sync button runs them, as
+ * a `createSyncJob` child, so their `console.log` progress never reaches the
+ * MCP wire on stdout and every guard in the pipeline comes along unchanged.
+ * `order-details` consumes what `orders` wrote, so it only runs after a `done`.
+ *
+ * A call made while a run is in flight gets that run's promise: a client that
+ * gave up waiting and asked again sees the run it started, not a second one.
+ */
+export function createRefresh({ job, counts, root, steps = ['orders', 'order-details'] }) {
+  let inFlight = null;
+
+  async function run({ onLine } = {}) {
+    const off = onLine ? job.subscribe((e) => { if (e.type === 'line') onLine(e.text); }) : null;
+    try {
+      const before = await counts();
+      const ran = [];
+      let last;
+      for (const command of steps) {
+        job.start(command);
+        last = await job.finished();
+        ran.push({ command, status: last.status });
+        if (last.status !== 'done') break;
+      }
+
+      const status = last.status === 'done' || last.status === 'expired' ? last.status : 'failed';
+      const result = { status, steps: ran, before, after: await counts() };
+      if (status === 'expired') {
+        result.message = `Your PHPSESSID has expired. Run \`npm run orders\` in a terminal in ${root} — ` +
+          'it asks for a new one and saves it — then ask me to refresh again.';
+      }
+      if (status !== 'done') result.output = last.lines.slice(-OUTPUT_LINES);
+      return result;
+    } finally {
+      off?.();
+    }
+  }
+
+  return (opts) => (inFlight ??= run(opts).finally(() => { inFlight = null; }));
+}
