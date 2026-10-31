@@ -27,6 +27,11 @@ if (mode === 'noisy') {
   process.exit(0);
 }
 
+if (mode === 'cookie') {
+  console.log(`cookie: ${process.env.ORDERS_COOKIE}`);
+  process.exit(0);
+}
+
 if (mode === 'slow') {
   console.log('started');
   setInterval(() => {}, 1000); // hang until signalled

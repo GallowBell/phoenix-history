@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { fileURLToPath } from 'url';
+import { mkdtemp, writeFile, rm } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { createSyncJob, JobBusyError, UnknownCommandError } from './sync-job.js';
 
 const SCRIPT = fileURLToPath(new URL('../tests/fixtures/fake-scrape.mjs', import.meta.url));
@@ -138,5 +141,29 @@ describe('createSyncJob', () => {
     await job.finished();
     job.start('ok');
     expect((await job.finished()).status).toBe('done');
+  });
+
+  describe('the cookie the child runs with', () => {
+    // tests/setup.js exports ORDERS_COOKIE=test-cookie, which stands in for the
+    // value server.js inherited from `--env-file=.env` when it started.
+    let dir;
+    const cookieIn = async (envText) => {
+      dir = await mkdtemp(join(tmpdir(), 'sync-job-'));
+      await writeFile(join(dir, '.env'), envText);
+      const job = makeJob({ envFile: '.env', cwd: dir, commands: new Set(['cookie']) });
+      job.start('cookie');
+      return (await job.finished()).lines;
+    };
+    afterEach(() => rm(dir, { recursive: true, force: true }));
+
+    it('is the one renewed in .env, not the one this process inherited', async () => {
+      // Node's --env-file never overrides an inherited variable, so without the
+      // fix every sync after a renewal kept sending the dead startup cookie.
+      expect(await cookieIn('ORDERS_COOKIE="PHPSESSID=fresh"\n')).toEqual(['cookie: PHPSESSID=fresh']);
+    });
+
+    it('is the inherited one when .env holds no usable cookie', async () => {
+      expect(await cookieIn('ORDERS_COOKIE="PHPSESSID=your_session_id_here"\n')).toEqual(['cookie: test-cookie']);
+    });
   });
 });

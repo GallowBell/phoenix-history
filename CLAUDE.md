@@ -304,6 +304,16 @@ already in the pipeline rather than reimplementing them behind a route.
   route alone. The value is never logged and never echoed back. It travels over
   HTTP by deliberate choice (the server is `127.0.0.1`-only and the value is
   already plain text in `.env`); revisit if the bind address ever changes.
+- **A renewed `.env` cookie outranks the one the server started with.**
+  `server.js` runs under `--env-file=.env`, so its `ORDERS_COOKIE` is frozen at
+  startup, and Node's `--env-file` never overrides an inherited variable — every
+  sync after a renewal (cookie form or `npm run orders`) used to send the dead
+  cookie until `npm start` restarted. `childEnv()` in `sync-job.js` drops the
+  inherited value whenever `.env` holds a usable cookie; an exported cookie with
+  none in `.env` still passes through. It reads `.env` with `hasUsableCookie`
+  from `src/env-cookie.js`, which is split out of `ensure-cookie.js` because that
+  module imports axios and cheerio — importing it from `sync-job.js` made every
+  `npm start` and MCP launch ~8s slower on /mnt/c.
 - Progress is SSE on `/api/sync/stream`, replaying the ordered lines the
   scrapers already print. `/api/data-status` reports counts and mtimes for the
   "N orders · 2h ago" line.
